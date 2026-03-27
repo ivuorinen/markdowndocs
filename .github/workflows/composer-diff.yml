@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required to make it possible to compare with PR base branch
 
@@ -17,7 +17,7 @@ jobs:
         id: composer_diff # To reference the output in comment
         uses: IonBazan/composer-diff-action@v1
 
-      - uses: marocchino/sticky-pull-request-comment@v2
+      - uses: marocchino/sticky-pull-request-comment@v3
         # An empty diff result will break this action.
         if: ${{ steps.composer_diff.outputs.composer_diff_exit_code != 0 }}
         with:
