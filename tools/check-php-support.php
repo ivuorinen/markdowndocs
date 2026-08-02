@@ -34,7 +34,10 @@ $composer = json_decode((string)file_get_contents("$root/composer.json"), true, 
 $requirePhp = $composer['require']['php'] ?? '';
 $floor = $matchOne('/^\^(\d+\.\d+)$/', $requirePhp, 'require.php');
 if ($floor === null) {
-    fwrite(STDERR, "require.php must look like \"^8.3\", got \"$requirePhp\"\n");
+    // States the shape the regex above accepts, not the current floor: this
+    // branch only fires on a malformed constraint, and naming a version here
+    // made the message wrong for every floor but the one it was written for.
+    fwrite(STDERR, "require.php must look like \"^<major>.<minor>\", got \"$requirePhp\"\n");
     exit(1);
 }
 
