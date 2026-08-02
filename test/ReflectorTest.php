@@ -10,6 +10,7 @@ use InvalidArgumentException;
 use PHPDocsMD\Entities\ClassEntity;
 use PHPDocsMD\Entities\FunctionEntity;
 use PHPDocsMD\Reflections\Reflector;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionParameter;
 
@@ -436,9 +437,9 @@ class ReflectorTest extends TestCase
     }
 
     /**
-     * @dataProvider visibilityFiltersAndExpectedMethods
      * @throws \ReflectionException
      */
+    #[DataProvider('visibilityFiltersAndExpectedMethods')]
     public function testVisibilityBasedFiltering(array $visibilityFilter, array $expectedMethods): void
     {
         $reflector = new Reflector('Acme\\ExampleClass');
@@ -464,9 +465,9 @@ class ReflectorTest extends TestCase
     }
 
     /**
-     * @dataProvider regexFiltersAndExpectedMethods
      * @throws \ReflectionException
      */
+    #[DataProvider('regexFiltersAndExpectedMethods')]
     public function testMethodRegexFiltering($regexFilter, $expectedMethods): void
     {
         $reflector = new Reflector('Acme\\ExampleClass');

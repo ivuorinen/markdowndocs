@@ -7,6 +7,7 @@ namespace PHPDocsMD\Tests;
 use PHPDocsMD\Entities\FunctionEntity;
 use PHPDocsMD\Entities\ParamEntity;
 use PHPDocsMD\MDTableGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class MDTableGeneratorTest extends TestCase
@@ -203,9 +204,7 @@ class MDTableGeneratorTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider exampleComments
-     */
+    #[DataProvider('exampleComments')]
     public function testFormatExampleComment(string $input, string $expected): void
     {
         $this->assertEquals($expected, MDTableGenerator::formatExampleComment($input));
@@ -265,9 +264,7 @@ class MDTableGeneratorTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider codeTaggedComments
-     */
+    #[DataProvider('codeTaggedComments')]
     public function testCodeTagsAreStripped(string $input, string $expected): void
     {
         $this->assertEquals($expected, MDTableGenerator::formatExampleComment($input));
