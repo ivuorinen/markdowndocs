@@ -1,0 +1,25 @@
+# PHP sources are LF, so a Windows checkout cannot change what the generator
+# reads. The one exception is the CRLF fixture, which must keep its endings for
+# the test that proves line endings no longer decide whether a class is found.
+*.php                                       text eol=lf
+/test/Acme/Fixtures/Kinds/CrLfClass.php     -text
+
+# Keep the distributed package to what a consumer actually needs.
+#
+# `composer install --prefer-dist` (the default) fetches a tarball built with
+# these rules applied, so anything marked export-ignore never lands in a
+# consumer's vendor/ directory. Cloning the repo is unaffected.
+#
+# Do NOT export-ignore: src/, bin/ (the published executable), composer.json,
+# LICENSE, README.md, or docs.md (the rendered API reference README links to).
+
+/.github            export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/docs               export-ignore
+/renovate.json      export-ignore
+/phpcs.xml          export-ignore
+/phpunit.xml        export-ignore
+/psalm.xml          export-ignore
+/test               export-ignore
+/tools              export-ignore
