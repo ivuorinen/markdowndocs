@@ -3,26 +3,48 @@ on:
   pull_request:
     paths:
       - 'composer.lock'
-permissions:
-  pull-requests: write
+
+# One diff comment per pull request; a new push supersedes the run in flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Grant nothing by default so a job added later starts from zero rather than
+# inheriting the write scope the one job below needs.
+permissions: {}
 
 jobs:
   composer-diff:
     name: Composer Diff
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # The sticky-comment step posts the diff onto the pull request.
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # Required to make it possible to compare with PR base branch
+          # The step after this one is third-party code reading a pull request's
+          # composer.lock, and this job's token can write to pull requests.
+          # Nothing here uses git credentials after checkout.
+          persist-credentials: false
 
       - name: Generate composer diff
         id: composer_diff # To reference the output in comment
-        uses: IonBazan/composer-diff-action@v1
+        uses: IonBazan/composer-diff-action@e2022e8718d05cc6e4e5990a06fc928c75837f76 # v2.0.0
 
-      - uses: marocchino/sticky-pull-request-comment@v3
+      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         # An empty diff result will break this action.
-        if: ${{ steps.composer_diff.outputs.composer_diff_exit_code != 0 }}
+        #
+        # A pull request from a fork gets a read-only GITHUB_TOKEN whatever the
+        # `permissions:` block above asks for, so posting would 403 and mark the
+        # check failed on every outside contribution. Skip it there instead.
+        # Do NOT reach for pull_request_target to get a writable token: that runs
+        # with this repository's secrets against the fork's composer.lock, which
+        # composer-diff-action reads.
+        if: >-
+          ${{ steps.composer_diff.outputs.composer_diff_exit_code != 0
+              && github.event.pull_request.head.repo.full_name == github.repository }}
         with:
           header: composer-diff # Creates a collapsed comment with the report
           message: |

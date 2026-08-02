@@ -5,13 +5,25 @@
         bootstrap="vendor/autoload.php"
         colors="true"
         cacheDirectory=".phpunit.cache"
+        failOnDeprecation="true"
+        failOnNotice="true"
+        failOnWarning="true"
 >
   <testsuites>
     <testsuite name="Tests">
       <directory suffix="Test.php">./test</directory>
     </testsuite>
   </testsuites>
-  <source>
+  <!--
+    restrict* confines the failOn* gates above to first-party code. Old but still
+    supported dependencies (symfony/console 5.4 on the prefer-lowest CI leg) emit
+    deprecations on newer PHP that this project cannot fix; our own must still fail.
+  -->
+  <source
+          restrictDeprecations="true"
+          restrictNotices="true"
+          restrictWarnings="true"
+  >
     <include>
       <directory suffix=".php">./src</directory>
     </include>
