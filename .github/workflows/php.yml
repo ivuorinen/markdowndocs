@@ -128,5 +128,14 @@ jobs:
       - name: Static analysis (psalm)
         run: composer psalm
 
+      # Locked legs only. docs.md documents this package's own classes, two of
+      # which extend symfony/console — so the inherited surface, and therefore
+      # the generated document, changes with the resolved Symfony version:
+      # console 5.4 contributes Application::reset() and does not put
+      # SignalableCommandInterface on Command. The committed file is generated
+      # from the lock, so only a leg installed from the lock can compare against
+      # it; on the other two this compares against a moving target and fails for
+      # a reason that is not a defect.
       - name: Check docs.md is up to date
+        if: matrix.dependencies == 'locked'
         run: composer docs-check
