@@ -45,7 +45,7 @@ out of the code so that functions that are missing DocBlock comments will still 
 
 ### Requirements
 
-- PHP 8.2, 8.3, 8.4 or 8.5 — every branch currently supported by php.net. Each one is exercised by CI on every push.
+- PHP 8.3, 8.4 or 8.5 — every branch currently supported by php.net. Each one is exercised by CI on every push.
 - Reflection must be enabled in php.ini
 - Each class, interface, trait or enum must be defined in its own `.php` file, with the file name being the same as the type name. Files with
   another extension are not scanned

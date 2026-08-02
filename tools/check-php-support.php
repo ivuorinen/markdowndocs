@@ -34,7 +34,7 @@ $composer = json_decode((string)file_get_contents("$root/composer.json"), true, 
 $requirePhp = $composer['require']['php'] ?? '';
 $floor = $matchOne('/^\^(\d+\.\d+)$/', $requirePhp, 'require.php');
 if ($floor === null) {
-    fwrite(STDERR, "require.php must look like \"^8.2\", got \"$requirePhp\"\n");
+    fwrite(STDERR, "require.php must look like \"^8.3\", got \"$requirePhp\"\n");
     exit(1);
 }
 

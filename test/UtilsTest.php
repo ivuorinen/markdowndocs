@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PHPDocsMD\Tests;
 
 use PHPDocsMD\Utils;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class UtilsTest extends TestCase
@@ -14,9 +15,7 @@ class UtilsTest extends TestCase
         return array_map(static fn (string $t) => [$t], Utils::$nativeTypes);
     }
 
-    /**
-     * @dataProvider nativeTypes
-     */
+    #[DataProvider('nativeTypes')]
     public function testNativeTypesAreNeverTreatedAsClasses(string $type): void
     {
         $this->assertTrue(Utils::isNativeType($type));
