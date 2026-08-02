@@ -1,24 +1,33 @@
 #!/usr/bin/env php
 <?php
 
+declare(strict_types=1);
+
 $autoLoadPaths = [
     __DIR__ . '/vendor/autoload.php',
     __DIR__ . '/../vendor/autoload.php',
     __DIR__ . '/../../../autoload.php',
 ];
+$autoloaderFound = false;
 foreach ($autoLoadPaths as $autoloader) {
     if (file_exists($autoloader)) {
         require $autoloader;
+        $autoloaderFound = true;
         break;
     }
+}
+
+if (!$autoloaderFound) {
+    fwrite(STDERR, "phpdoc-md: no composer autoloader found. Run 'composer install'." . PHP_EOL);
+    exit(2);
 }
 
 use PHPDocsMD\Console\CLI;
 
 try {
     $cli = new CLI();
-    $code = $cli->run();
-    exit($code);
-} catch (Exception $e) {
+    exit($cli->run());
+} catch (Throwable $e) {
+    fwrite(STDERR, 'phpdoc-md: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }

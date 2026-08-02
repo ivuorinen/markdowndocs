@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD\Console;
 
+use Composer\InstalledVersions;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -13,18 +16,26 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class CLI extends Application
 {
-    /**
-     * @throws \JsonException
-     */
+    private const PACKAGE = 'ivuorinen/markdowndocs';
+
     public function __construct()
     {
-        $json = json_decode(
-            file_get_contents(__DIR__ . '/../../../composer.json'),
-            false,
-            512,
-            JSON_THROW_ON_ERROR
-        );
-        parent::__construct('PHP Markdown Documentation Generator', $json->version ?? 'No version');
+        parent::__construct('PHP Markdown Documentation Generator', self::resolveVersion());
+    }
+
+    /**
+     * The installed version is authoritative — composer.json carries no hardcoded
+     * one, so there is nothing that can drift away from the released tag.
+     */
+    private static function resolveVersion(): string
+    {
+        if (!class_exists(InstalledVersions::class)
+            || !InstalledVersions::isInstalled(self::PACKAGE)
+        ) {
+            return 'UNKNOWN';
+        }
+
+        return InstalledVersions::getPrettyVersion(self::PACKAGE) ?? 'UNKNOWN';
     }
 
     /**
@@ -33,9 +44,17 @@ class CLI extends Application
      *
      * @throws \Exception
      */
-    public function run(InputInterface $input = null, OutputInterface $output = null): int
+    #[\Override]
+    public function run(?InputInterface $input = null, ?OutputInterface $output = null): int
     {
-        $this->add(new PHPDocsMDCommand());
+        $command = new PHPDocsMDCommand();
+
+        // Application::add() was removed in Symfony 8; addCommand() replaced it in 7.4.
+        if (method_exists($this, 'addCommand')) {
+            $this->addCommand($command);
+        } else {
+            $this->add($command);
+        }
 
         return parent::run($input, $output);
     }
