@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD\Entities;
 
 use PHPDocsMD\Utils;
@@ -21,28 +23,21 @@ class ClassEntity extends CodeEntity
     private bool $hasInternalTag = false;
     private string $extends = '';
     private array $interfaces = [];
-    private array $see = [];
-    private bool $isNative = false;
+    private bool $isTrait = false;
+    private bool $isEnum = false;
 
-    public function hasIgnoreTag(bool $toggle = null): bool
+    public function hasIgnoreTag(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->hasIgnoreTag
             : ($this->hasIgnoreTag = $toggle);
     }
 
-    public function hasInternalTag(bool $toggle = null): bool
+    public function hasInternalTag(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->hasInternalTag
             : ($this->hasInternalTag = $toggle);
-    }
-
-    public function isNative(bool $toggle = null): bool
-    {
-        return $toggle === null
-            ? $this->isNative
-            : ($this->isNative = $toggle);
     }
 
     public function getExtends(): string
@@ -72,21 +67,6 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
-    public function getSee(): array
-    {
-        return $this->see;
-    }
-
-    public function setSee(array $see): self
-    {
-        $this->see = [];
-        foreach ($see as $i) {
-            $this->see[] = $i;
-        }
-
-        return $this;
-    }
-
     public function getFunctions(): array
     {
         return $this->functions;
@@ -102,6 +82,7 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    #[\Override]
     public function setName(string $name): self
     {
         parent::setName(Utils::sanitizeClassName($name));
@@ -126,11 +107,19 @@ class ClassEntity extends CodeEntity
     {
         $title = $this->generateTitle();
 
+        // The namespace separator becomes a hyphen rather than being deleted:
+        // dropping it collapsed \A\FooBar and \A\Foo\Bar onto one anchor, so the
+        // table of contents and every cross-reference for the second class
+        // pointed at the first.
         return strtolower(
-            str_replace(
-                [':', ' ', '\\', '(', ')'],
-                ['', '-', '', '', ''],
-                $title
+            (string)preg_replace(
+                '/-+/',
+                '-',
+                str_replace(
+                    [':', ' ', '\\', '(', ')'],
+                    ['', '-', '-', '', ''],
+                    $title
+                )
             )
         );
     }
@@ -141,7 +130,15 @@ class ClassEntity extends CodeEntity
     public function generateTitle(string $format = '%label%: %name% %extra%'): string
     {
         $translate = [
-            '%label%' => $this->isInterface() ? 'Interface' : 'Class',
+            // A trait cannot be instantiated and an enum has closed instances;
+            // labelling either "Class" tells a reader the wrong thing about how
+            // to use it. Reflection reports the kind — this used to not ask.
+            '%label%' => match (true) {
+                $this->isInterface() => 'Interface',
+                $this->isTrait() => 'Trait',
+                $this->isEnum() => 'Enum',
+                default => 'Class',
+            },
             '%name%' => substr_count($this->getName(), '\\') === 1
                 ? substr($this->getName(), 1)
                 : $this->getName(),
@@ -161,14 +158,28 @@ class ClassEntity extends CodeEntity
         return trim(strtr($format, $translate));
     }
 
-    public function isInterface(bool $toggle = null): bool
+    public function isInterface(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->isInterface
             : ($this->isInterface = $toggle);
     }
 
-    public function isAbstract(bool $toggle = null): bool
+    public function isTrait(?bool $toggle = null): bool
+    {
+        return $toggle === null
+            ? $this->isTrait
+            : ($this->isTrait = $toggle);
+    }
+
+    public function isEnum(?bool $toggle = null): bool
+    {
+        return $toggle === null
+            ? $this->isEnum
+            : ($this->isEnum = $toggle);
+    }
+
+    public function isAbstract(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->abstract

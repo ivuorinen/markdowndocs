@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD;
 
 use PHPDocsMD\Entities\ClassEntity;
@@ -16,9 +18,10 @@ class FunctionFinder
     private array $cache = [];
 
     /**
+     * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */
-    public function findInClasses(string $methodName, array $classes): bool|FunctionEntity
+    public function findInClasses(string $methodName, array $classes): FunctionEntity|false
     {
         foreach ($classes as $className) {
             $function = $this->find($methodName, $className);
@@ -31,9 +34,10 @@ class FunctionFinder
     }
 
     /**
+     * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */
-    public function find(string $methodName, string $className): bool|FunctionEntity
+    public function find(string $methodName, string $className): FunctionEntity|false
     {
         if ($className) {
             $classEntity = $this->loadClassEntity($className);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD\Entities;
 
 use PHPDocsMD\DocInfoExtractor;
@@ -22,6 +24,8 @@ class ClassEntityFactory
     {
         $class = new ClassEntity();
         $class->isInterface($reflection->isInterface());
+        $class->isTrait($reflection->isTrait());
+        $class->isEnum($reflection->isEnum());
         $class->isAbstract($reflection->isAbstract());
         $class->setInterfaces(array_keys($reflection->getInterfaces()));
 
