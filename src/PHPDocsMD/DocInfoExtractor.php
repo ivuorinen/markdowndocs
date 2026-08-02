@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD;
 
 use PHPDocsMD\Entities\CodeEntity;
@@ -13,6 +15,13 @@ use ReflectionMethod;
  */
 class DocInfoExtractor
 {
+    /**
+     * Tag names addressing an array-valued key in the extracted structure. A
+     * free-form tag must never be allowed to take one of these names. "see" is
+     * not listed: its own branch above already consumes it.
+     */
+    private const STRUCTURED_TAGS = ['params'];
+
     /**
      * @param \ReflectionMethod|\ReflectionClass $reflection
      *
@@ -28,9 +37,17 @@ class DocInfoExtractor
 
     private function getCleanDocComment(ReflectionClass|ReflectionMethod $reflection): string
     {
-        $comment = str_replace(['/*', '*/'], '', $reflection->getDocComment());
+        // getDocComment() returns false for anything undocumented, which is most
+        // of what this tool is asked to describe.
+        $comment = str_replace(['/*', '*/'], '', (string)$reflection->getDocComment());
 
-        return trim(trim(preg_replace('/([\s|^]\*\s)/', '', $comment)), '*');
+        // The "*" decoration only ever sits at the start of a line, so the match
+        // is anchored there. Unanchored, it also ate an asterisk in the prose
+        // together with the space on each side, turning "width * height" into
+        // "widthheight". "$1" re-emits the indentation minus the one space the
+        // pattern consumes, keeping the leading whitespace that
+        // MDTableGenerator::formatExampleComment() measures.
+        return trim(trim((string)preg_replace('/^([ \t]*)[ \t]\*(\s)/m', '$1', $comment)), '*');
     }
 
     /**
@@ -43,6 +60,7 @@ class DocInfoExtractor
     ): array {
         $currentNamespace = $this->getNameSpace($reflection);
         $tags = [$current_tag => ''];
+        $lastParam = null;
 
         foreach (explode(PHP_EOL, $comment) as $line) {
             if ($current_tag !== 'example') {
@@ -54,30 +72,76 @@ class DocInfoExtractor
                 continue;
             }
 
-            if (!str_contains($words[0], '@')) {
+            // A tag is the whole first word, either bare or *completely* wrapped
+            // in the inline braces phpDocumentor uses ("{@inheritDoc}"). Testing
+            // for a contained "@" read an e-mail address at the start of a line
+            // as a tag; accepting a bare "{@" opener read the first word of an
+            // inline "{@link ...}" as one and swallowed the rest of the line.
+            $isTag = preg_match(
+                '/^(?:\{@([A-Za-z][\w-]*)\}|@([A-Za-z][\w-]*))$/',
+                $words[0],
+                $tagMatch
+            ) === 1;
+            $tagName = $isTag ? ($tagMatch[1] !== '' ? $tagMatch[1] : $tagMatch[2]) : '';
+
+            if (!$isTag) {
+                // A wrapped "@param" line continues that parameter's description.
+                // "@see" and "@return" hold a structured value, and their wrapped
+                // lines are prose this tool does not render. All three used to
+                // fall through below and be appended to the entity's description.
+                if ($current_tag === 'param') {
+                    if ($lastParam !== null) {
+                        $tags['params'][$lastParam]['description'] = trim(
+                            $tags['params'][$lastParam]['description'] . ' ' . $line
+                        );
+                    }
+                    continue;
+                }
+                if ($current_tag === 'see' || $current_tag === 'return') {
+                    continue;
+                }
+
                 // Append to tag
                 $joinWith = $current_tag === 'example' ? PHP_EOL : ' ';
                 $tags[$current_tag] .= $joinWith . $line;
-            } elseif ($words[0] === '@param') {
+            } elseif ($tagName === 'param') {
                 // Get parameter declaration
+                $lastParam = null;
                 if ($paramData = $this->figureOutParamDeclaration($words, $currentNamespace)) {
                     [$name, $data] = $paramData;
                     $tags['params'][$name] = $data;
+                    $lastParam = $name;
                 }
-            } elseif ($words[0] === '@see') {
+                $current_tag = 'param';
+            } elseif ($tagName === 'see') {
                 if (!isset($tags['see']) || !is_array($tags['see'])) {
                     $tags['see'] = [];
                 }
                 $tags['see'][] = $this->figureOutSeeDeclaration($words);
+                $current_tag = 'see';
+            } elseif ($tagName === 'return') {
+                // "@return <type> <description>" is the documented form: only the
+                // first word is the type. Storing the whole line rendered the
+                // description inside <em> as though it were part of the type.
+                $tags['return'] = $words[1] ?? '';
+                $current_tag = 'return';
+            } elseif (in_array($tagName, self::STRUCTURED_TAGS, true)) {
+                // "@params" would replace the array the real "@param" writes into
+                // with a string, and the next "@param" would then index that
+                // string and fatal. Keep the line as prose instead — never in a
+                // tag whose value is not a string.
+                $sink = in_array($current_tag, ['param', 'see', 'return'], true)
+                    ? 'description'
+                    : $current_tag;
+                $tags[$sink] .= ' ' . $line;
             } else {
                 // Start new tag
-                $current_tag = substr($words[0], 1);
+                $current_tag = $tagName;
                 array_splice($words, 0, 1);
                 if (empty($tags[$current_tag])) {
                     $tags[$current_tag] = '';
                 }
 
-                /** @psalm-suppress PossiblyInvalidOperand */
                 $tags[$current_tag] .= trim(implode(' ', $words));
             }
         }
@@ -119,24 +183,25 @@ class DocInfoExtractor
 
     private function figureOutParamDeclaration(array $words, string $currentNameSpace): ?array
     {
+        // Drop the leading @param tag, everything below indexes the declaration itself
+        array_shift($words);
+
         $description = '';
         $type = '';
         $name = '';
 
-        if (isset($words[1]) && str_starts_with($words[1], '$')) {
-            $name = $words[1];
+        if (isset($words[0]) && str_starts_with($words[0], '$')) {
+            $name = $words[0];
             $type = 'mixed';
-            array_splice($words, 0, 2);
-        } elseif (isset($words[2])) {
+            array_splice($words, 0, 1);
+        } elseif (isset($words[1])) {
             [$type, $name] = $words;
-            array_splice($words, 0, 3);
+            array_splice($words, 0, 2);
         }
 
         if (!empty($name)) {
             $name = current(explode('=', $name));
-            if (count($words) > 1) {
-                $description = implode(' ', $words);
-            }
+            $description = implode(' ', $words);
 
             $type = Utils::sanitizeDeclaration($type, $currentNameSpace);
 
@@ -147,7 +212,12 @@ class DocInfoExtractor
                 'default' => false,
             ];
 
-            return [$name, $data];
+            // Key by the bare name. Reflector looks a parameter up as "$name",
+            // while a docblock may write "...$name" or "&$name" for the same
+            // one — those entries used to be unreachable, so the documented type
+            // and description of every variadic and by-reference parameter were
+            // silently dropped.
+            return ['$' . ltrim($name, '&.$'), $data];
         }
 
         return null;
@@ -181,7 +251,9 @@ class DocInfoExtractor
         $code->setSee($docInfo->getSee());
         $code->isInternal($docInfo->isInternal());
 
-        if ($docInfo->getDeprecationMessage()) {
+        // Presence of the tag, not the message: "@deprecated" on its own is the
+        // most common form, and testing the message read it as not deprecated.
+        if ($docInfo->isDeprecated()) {
             $code->isDeprecated(true);
             $code->setDeprecationMessage($docInfo->getDeprecationMessage());
         }
