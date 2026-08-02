@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD;
 
 use PHPDocsMD\Entities\FunctionEntity;
@@ -34,6 +36,7 @@ class MDTableGenerator implements TableGenerator
      * appended to the end of the table. Setting $toggle to false
      * prevents this behaviour.
      */
+    #[\Override]
     public function appendExamplesToEndOfTable(bool $toggle): void
     {
         $this->appendExamples = $toggle;
@@ -42,6 +45,7 @@ class MDTableGenerator implements TableGenerator
     /**
      * Begin generating a new markdown-formatted table
      */
+    #[\Override]
     public function openTable(): void
     {
         $this->examples = [];
@@ -57,9 +61,26 @@ class MDTableGenerator implements TableGenerator
     }
 
     /**
+     * An unescaped pipe terminates the cell it sits in, so a union type such as
+     * "int | string" would silently add a column to the row. A newline
+     * terminates the whole row, so a multi-line default value — "--- Original\n
+     * +++ New\n" is a real one, from sebastian/diff — used to truncate the table
+     * at that row and render everything after it as loose text.
+     */
+    private static function escapeCell(string $str): string
+    {
+        return str_replace(
+            ['|', "\r\n", "\r", "\n"],
+            ['\\|', '<br />', '<br />', '<br />'],
+            $str
+        );
+    }
+
+    /**
      * Toggle whether methods being abstract (or part of an interface)
      * should be declared as abstract in the table
      */
+    #[\Override]
     public function doDeclareAbstraction(bool $toggle): void
     {
         $this->declareAbstraction = $toggle;
@@ -69,6 +90,7 @@ class MDTableGenerator implements TableGenerator
      * Generates a markdown formatted table row with information about given function. Then adds the
      * row to the table and returns the markdown formatted string.
      */
+    #[\Override]
     public function addFunc(FunctionEntity $func, bool $includeSee = false): string
     {
         $this->fullClassName = $func->getClass();
@@ -79,34 +101,41 @@ class MDTableGenerator implements TableGenerator
             $str .= 'abstract ';
         }
 
-        $str .= $func->getName() . '(';
+        $str .= self::escapeCell($func->getName()) . '(';
 
         if ($func->hasParams()) {
             $params = [];
             foreach ($func->getParams() as $param) {
-                $paramStr = '<em>' . $param->getType() . '</em> <strong>' . $param->getName();
-                if ($param->getDefault()) {
-                    $paramStr .= '=' . $param->getDefault();
+                $paramStr = '<em>' . self::escapeCell($param->getType()) . '</em> <strong>' .
+                    self::escapeCell($param->getName());
+                if ($param->hasDefault()) {
+                    $paramStr .= '=' . self::escapeCell($param->getDefault());
                 }
                 $paramStr .= '</strong>';
                 $params[] = $paramStr;
             }
-            $str .= '</strong>' . implode(', ', $params) . ')';
-        } else {
-            $str .= ')';
+            // Re-open before the ")" so the closing tag appended below has
+            // something to close. Without it every row with parameters carried
+            // an unmatched </strong>.
+            $str .= '</strong>' . implode(', ', $params) . '<strong>';
         }
 
-        $str .= '</strong> : <em>' . $func->getReturnType() . '</em>';
+        $str .= ')</strong> : <em>' . self::escapeCell($func->getReturnType()) . '</em>';
 
         if ($func->isDeprecated()) {
+            $message = self::escapeCell($func->getDeprecationMessage());
             $str = '<del>' . $str . '</del>';
-            $str .= '<br /><em>DEPRECATED - ' . $func->getDeprecationMessage() . '</em>';
+            // A bare "@deprecated" carries no message; " - " with nothing after
+            // it reads as a truncated sentence.
+            $str .= $message === ''
+                ? '<br /><em>DEPRECATED</em>'
+                : '<br /><em>DEPRECATED - ' . $message . '</em>';
         } elseif ($func->getDescription()) {
-            $str .= '<br /><em>' . $func->getDescription() . '</em>';
+            $str .= '<br /><em>' . self::escapeCell($func->getDescription()) . '</em>';
         }
         if ($includeSee && $func->getSee()) {
             $str .= '<br /><em>&nbsp;&nbsp;&nbsp;&nbsp;See: ' .
-                implode(', ', $func->getSee()) . '</em>';
+                self::escapeCell(implode(', ', $func->getSee())) . '</em>';
         }
 
         $str = str_replace(
@@ -127,6 +156,7 @@ class MDTableGenerator implements TableGenerator
         return $markDown;
     }
 
+    #[\Override]
     public function getTable(): string
     {
         $tbl = trim($this->markdown);
@@ -148,18 +178,12 @@ class MDTableGenerator implements TableGenerator
     /**
      * Create a markdown-formatted code view out of an example comment
      */
+    #[\Override]
     public static function formatExampleComment(string $example): string
     {
         // Remove possible code tag
-        $example = self::stripCodeTags($example);
+        $example = trim(self::dedent(self::stripCodeTags($example)));
 
-        if (preg_match('/(\n {7})/', $example)) {
-            $example = preg_replace('/(\n {7})/', "\n", $example);
-        } elseif (preg_match('/(\n {4})/', $example)) {
-            $example = preg_replace('/(\n {4})/', "\n", $example);
-        } else {
-            $example = preg_replace('/(\n {3})/', "\n", $example);
-        }
         $type = '';
 
         // A very naive analysis of the programming language used in the comment
@@ -169,18 +193,56 @@ class MDTableGenerator implements TableGenerator
             $type = 'js';
         }
 
-        return sprintf("```%s\n%s\n```", $type, trim($example));
+        // The fence has to be longer than any fence inside the example. An
+        // @example written in the markdown style carries its own ```, which
+        // closed this one on its opening line and left the example rendering as
+        // prose between two empty code blocks.
+        $longest = preg_match_all('/`{3,}/', $example, $matches)
+            ? max(array_map('strlen', $matches[0]))
+            : 0;
+        $fence = str_repeat('`', max(3, $longest + 1));
+
+        return sprintf("%s%s\n%s\n%s", $fence, $type, $example, $fence);
+    }
+
+    /**
+     * Remove the indentation every non-blank line shares.
+     *
+     * The width has to be the minimum across the example, not the maximum. The
+     * old heuristic looked for 7, then 4, then 3 leading spaces and stripped
+     * that many from whichever lines happened to have them, which rendered a
+     * nested block *shallower* than the block containing it.
+     */
+    private static function dedent(string $text): string
+    {
+        $indent = null;
+        foreach (preg_split('/\R/', $text) ?: [] as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $width = strlen($line) - strlen(ltrim($line, ' '));
+            $indent = $indent === null ? $width : min($indent, $width);
+        }
+
+        return $indent ? (string)preg_replace('/^ {' . $indent . '}/m', '', $text) : $text;
     }
 
     private static function stripCodeTags(string $example): string
     {
-        if (str_contains($example, '<code')) {
-            $parts = array_slice(explode('</code>', $example), -2);
-            $example = (string)current($parts);
-            $parts = array_slice(explode('<code>', $example), 1);
-            $example = (string)current($parts);
+        if (!str_contains($example, '<code')) {
+            return $example;
         }
 
-        return $example;
+        // The opening tag may carry attributes (<code class="php">), so match it
+        // as a pattern rather than splitting on the literal "<code>". Keep the
+        // last complete block, which is the long-standing behaviour here.
+        preg_match_all('#<code[^>]*>(.*?)</code>#s', $example, $matches);
+        $blocks = $matches[1];
+        if ($blocks !== []) {
+            return (string)end($blocks);
+        }
+
+        // Opening tag with no closing tag: keep everything after it.
+        return (string)preg_replace('#^.*?<code[^>]*>#s', '', $example);
     }
 }

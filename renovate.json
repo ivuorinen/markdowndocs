@@ -2,5 +2,16 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>ivuorinen/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "Workflow files are export-ignored, so an action bump is never a breaking change for a consumer of this package. Keep the '!' marker off them so future release automation cannot cut a major version for CI-only churn.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "actions",
+      "commitMessageSuffix": ""
+    }
   ]
 }

@@ -38,15 +38,17 @@ Then, running `phpdoc-md generate src > api.md` will write your API documentatio
 
 [Here you can see a rendered example](https://github.com/ivuorinen/markdowndocs/blob/main/docs.md)
 
-Only public and protected functions will be a part of the documentation, but you can also add `@ignore` to any function or class to exclude it from the docs.
+By default, functions that are public, protected, abstract or final will be a part of the documentation — private functions are never included. Use `--visibility`
+to narrow that set. You can also add `@ignore` to any function or class to exclude it from the docs.
 Phpdoc-md will try to guess the return type of functions that don't explicitly declare one. The program uses reflection to get as much information as possible
 out of the code so that functions that are missing DocBlock comments will still be included in the generated documentation.
 
 ### Requirements
 
-- PHP version >= 8.2
+- PHP 8.2, 8.3, 8.4 or 8.5 — every branch currently supported by php.net. Each one is exercised by CI on every push.
 - Reflection must be enabled in php.ini
-- Each class must be defined in its own file with the file name being the same as the class name
+- Each class, interface, trait or enum must be defined in its own `.php` file, with the file name being the same as the type name. Files with
+  another extension are not scanned
 - The project should use [Composer](https://getcomposer.org/)
 
 ### Installation / Usage
@@ -82,6 +84,24 @@ class, or if it should process every class in a specified directory search path.
 ```
 
 *Note that any class to be documented must be loadable using the autoloader provided by composer.*
+
+##### Options
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `--bootstrap`, `-b` | none | PHP file to require before generating documentation |
+| `--ignore`, `-i` | none | Comma-separated directory names to skip, at any depth. Matched whole: `--ignore=test` skips `test/`, not `latest/` |
+| `--visibility` | `public,protected,abstract,final` | Comma-separated method visibilities to include. Unknown values are rejected; `private` is not supported |
+| `--methodRegex` | none | Full regular expression a method name must match to be included |
+| `--tableGenerator` | `default` | Slug or fully-qualified class name of a `PHPDocsMD\TableGenerator` implementation. Unknown values are rejected |
+| `--see` | off | Include `@see` entries in the generated markdown |
+| `--no-internal` | off | Skip classes and functions tagged `@internal` |
+| `--no-examples` | off | Omit `@example` blocks that would otherwise follow each function table |
+
+```shell
+# Only public methods, only those named like a getter, including @see references
+./vendor/bin/phpdoc-md generate --visibility=public --methodRegex='/^get/' --see includes/src > api.md
+```
 
 ##### Bootstrapping
 

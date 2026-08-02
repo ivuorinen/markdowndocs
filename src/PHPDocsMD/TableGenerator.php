@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD;
 
 use PHPDocsMD\Entities\FunctionEntity;
@@ -39,7 +41,7 @@ interface TableGenerator
      * Generates a markdown formatted table row with information about given function. Then adds the
      * row to the table and returns the markdown formatted string.
      */
-    public function addFunc(FunctionEntity $func): string;
+    public function addFunc(FunctionEntity $func, bool $includeSee = false): string;
 
     public function getTable(): string;
 }

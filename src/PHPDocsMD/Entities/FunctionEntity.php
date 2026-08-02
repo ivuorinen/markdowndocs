@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD\Entities;
 
 /**
@@ -18,11 +20,9 @@ class FunctionEntity extends CodeEntity
     private bool $abstract = false;
     private bool $isStatic = false;
     private string $class = '';
-    private array $see = [];
-    private array $todo = [];
     private bool $isReturningNativeClass = false;
 
-    public function isStatic(bool $toggle = null): bool
+    public function isStatic(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->isStatic
@@ -39,7 +39,7 @@ class FunctionEntity extends CodeEntity
         return $this;
     }
 
-    public function isAbstract(bool $toggle = null): bool
+    public function isAbstract(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->abstract
@@ -56,7 +56,7 @@ class FunctionEntity extends CodeEntity
         return $this;
     }
 
-    public function isReturningNativeClass(bool $toggle = null): bool
+    public function isReturningNativeClass(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->isReturningNativeClass
@@ -123,28 +123,5 @@ class FunctionEntity extends CodeEntity
         $this->class = $class;
 
         return $this;
-    }
-
-    public function getSee(): array
-    {
-        return $this->see;
-    }
-
-    public function setSee(array $see): FunctionEntity
-    {
-        $this->see = $see;
-
-        return $this;
-    }
-
-    public function setTodo(array $todo): FunctionEntity
-    {
-        $this->todo = $todo;
-        return $this;
-    }
-
-    public function getTodo(): array
-    {
-        return $this->todo;
     }
 }

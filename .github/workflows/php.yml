@@ -6,44 +6,136 @@ on:
   pull_request:
     branches: [ main ]
 
+# A six-leg matrix per ref is expensive; a new push makes the run in flight
+# irrelevant, so cancel it rather than queue behind it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Every step here only reads the repository. composer install/update run
+# third-party code, so the token they see must not be able to write anything.
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: PHP ${{ matrix.php-versions }} (${{ matrix.dependencies }} deps)
     runs-on: ${{ matrix.operating-system }}
-    continue-on-error: true
 
     strategy:
+      # Report every matrix leg independently. This is the legitimate need that
+      # `continue-on-error: true` used to stand in for — that flag also masked
+      # genuine failures, so the job could never gate a merge.
+      fail-fast: false
       matrix:
         operating-system: ['ubuntu-latest']
-        php-versions: ['8.2', '8.3']
-        phpunit-versions: ['latest']
+        # Every PHP branch currently supported by php.net. Keep in agreement with
+        # require.php, config.platform.php and README's Requirements section.
+        php-versions: ['8.2', '8.3', '8.4', '8.5']
+        dependencies: ['locked']
+        include:
+          # The committed lock pins one dependency set, so the four legs above all
+          # install symfony/console 7 regardless of PHP version. These two legs
+          # cover the ends of the declared range instead:
+          #
+          #   highest — symfony/console 8 (needs PHP >= 8.4.1), exercising the
+          #             Application::addCommand path the lock never reaches.
+          #   lowest  — symfony/console 5.4, the oldest the constraint allows,
+          #             run on the oldest PHP we support.
+          - operating-system: 'ubuntu-latest'
+            php-versions: '8.5'
+            dependencies: 'highest'
+          - operating-system: 'ubuntu-latest'
+            php-versions: '8.2'
+            dependencies: 'lowest'
 
     steps:
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ matrix.php-versions }}
           extensions: mbstring, intl, fileinfo
           ini-values: post_max_size=256M, max_execution_time=180
-          coverage: xdebug
-          tools: php-cs-fixer, phpunit:${{ matrix.phpunit-versions }}
+          # Only the one leg that reports coverage needs a driver installed;
+          # the other five run measurably faster without one.
+          coverage: ${{ (matrix.php-versions == '8.5' && matrix.dependencies == 'locked') && 'xdebug' || 'none' }}
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing below uses git credentials, and everything from the install
+          # step on is third-party code running in this workspace. `permissions:`
+          # bounds what the token can do; this keeps it out of .git/config.
+          persist-credentials: false
 
       - name: Validate composer.json and composer.lock
-        run: composer validate
+        run: composer validate --strict
+
+      # Must run before the install steps below: the 'highest' leg unsets
+      # config.platform.php, so afterwards this would be reading its own edit.
+      - name: Check PHP support declarations agree
+        run: composer check-php-support
 
       - name: Cache Composer packages
         id: composer-cache
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: ${{ runner.os }}-php-${{ matrix.php-versions }}-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-php-${{ matrix.php-versions }}-${{ matrix.dependencies }}-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php-versions }}-${{ matrix.dependencies }}-
             ${{ runner.os }}-php-${{ matrix.php-versions }}-
-            ${{ runner.os }}-php-
 
-      - name: Install dependencies
+      - name: Install dependencies (from lock)
+        if: matrix.dependencies == 'locked'
         run: composer install --prefer-dist --no-progress
 
+      - name: Install dependencies (newest allowed)
+        if: matrix.dependencies == 'highest'
+        # Drop the 8.2 resolution floor so Symfony 8 (php >= 8.4.1) can be chosen.
+        run: |
+          composer config --unset platform.php
+          composer update --prefer-dist --prefer-stable --no-progress
+
+      - name: Install dependencies (oldest allowed)
+        if: matrix.dependencies == 'lowest'
+        run: composer update --prefer-lowest --prefer-stable --prefer-dist --no-progress
+
+      - name: Audit dependencies
+        run: composer audit
+
       - name: Run test suite
+        if: ${{ !(matrix.php-versions == '8.5' && matrix.dependencies == 'locked') }}
         run: composer test
+
+      - name: Run test suite with coverage
+        if: ${{ matrix.php-versions == '8.5' && matrix.dependencies == 'locked' }}
+        run: composer test-coverage
+
+      - name: Upload coverage to Codecov
+        if: ${{ matrix.php-versions == '8.5' && matrix.dependencies == 'locked' }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./coverage.xml
+          # Don't fail the build when the upload itself is flaky — the tests
+          # above already gated. Set to true once uploads are proven reliable.
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Lint (phpcs)
+        run: composer lint
+
+      - name: Static analysis (psalm)
+        run: composer psalm
+
+      # Locked legs only. docs.md documents this package's own classes, two of
+      # which extend symfony/console — so the inherited surface, and therefore
+      # the generated document, changes with the resolved Symfony version:
+      # console 5.4 contributes Application::reset() and does not put
+      # SignalableCommandInterface on Command. The committed file is generated
+      # from the lock, so only a leg installed from the lock can compare against
+      # it; on the other two this compares against a moving target and fails for
+      # a reason that is not a defect.
+      - name: Check docs.md is up to date
+        if: matrix.dependencies == 'locked'
+        run: composer docs-check

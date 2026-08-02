@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PHPDocsMD\Entities;
 
 /**
@@ -17,14 +19,14 @@ class CodeEntity
     private string $example = '';
     private array $see = [];
 
-    public function isDeprecated(bool $toggle = null): bool
+    public function isDeprecated(?bool $toggle = null): bool
     {
         return $toggle === null
             ? $this->isDeprecated
             : ($this->isDeprecated = $toggle);
     }
 
-    public function isInternal(bool $toggle = null): ?bool
+    public function isInternal(?bool $toggle = null): ?bool
     {
         return $toggle === null
             ? $this->isInternal
@@ -84,12 +86,14 @@ class CodeEntity
         return $this->see;
     }
 
-    public function setSee(array $see): self
+    /**
+     * Returns static so subclasses inherit this without having to override it
+     * only to keep their own return type — ClassEntity and FunctionEntity each
+     * carried a verbatim copy of this method and a shadowing $see property.
+     */
+    public function setSee(array $see): static
     {
-        $this->see = [];
-        foreach ($see as $i) {
-            $this->see[] = $i;
-        }
+        $this->see = array_values($see);
 
         return $this;
     }

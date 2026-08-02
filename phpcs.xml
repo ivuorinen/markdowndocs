@@ -2,7 +2,20 @@
     <description>PSR2</description>
 
     <file>src</file>
+    <file>bin</file>
+    <file>tools</file>
+    <file>test</file>
+
     <exclude-pattern>vendor</exclude-pattern>
+    <!--
+        The fixtures under test/Acme/ are exempt on purpose. ExampleClass.php
+        declares nine classes in one file because that multi-class layout is
+        exactly what ReflectorTest reflects over, and CrLfClass.php must keep
+        its CRLF endings. Both are permanent PSR-2 violations that cannot be
+        fixed without changing what is under test. The test classes themselves
+        are namespaced and do get checked.
+    -->
+    <exclude-pattern>test/Acme/*</exclude-pattern>
 
     <arg name="colors"/>
     <arg value="p"/>
