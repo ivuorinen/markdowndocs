@@ -72,7 +72,7 @@ abstract class ExampleClass implements \Reflector
     {
     }
 
-    public function funcD($arg, $arr = [], ExampleInterface $depr = null, \stdClass $class = null)
+    public function funcD($arg, $arr = [], ?ExampleInterface $depr = null, ?\stdClass $class = null)
     {
     }
 
@@ -174,6 +174,37 @@ class ClassWithStaticFunc
      * @return float
      */
     public static function someStaticFunc()
+    {
+    }
+}
+
+class ClassWithDocumentedParams
+{
+
+    /**
+     * @param int    $count  How many things
+     * @param string $label  Naming
+     * @param int    $offset Where to start
+     */
+    public function documented($count, $label, $offset)
+    {
+    }
+}
+
+class ClassWithFalsyDefaults
+{
+    public function falsy($int = 0, $float = 0.0, $bool = false, $none = null)
+    {
+    }
+}
+
+class ClassWithFluentInterface
+{
+
+    /**
+     * @return self
+     */
+    public function fluent()
     {
     }
 }
