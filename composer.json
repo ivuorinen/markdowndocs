@@ -22,7 +22,7 @@
     "require": {
         "php": "^8.2",
         "ext-json": "*",
-        "symfony/console": "^5 || ^6"
+        "symfony/console": "^7"
     },
     "require-dev": {
         "ergebnis/composer-normalize": "^2.23.1",
