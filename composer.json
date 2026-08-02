@@ -2,7 +2,6 @@
     "name": "ivuorinen/markdowndocs",
     "description": "Command line tool for generating markdown-formatted class documentation",
     "license": "MIT",
-    "version": "4.0.0",
     "authors": [
         {
             "name": "Victor Jonsson",
@@ -21,26 +20,25 @@
     "homepage": "https://github.com/ivuorinen/PHP-Markdown-Documentation-Generator",
     "require": {
         "php": "^8.2",
-        "ext-json": "*",
-        "symfony/console": "^5 || ^6"
+        "symfony/console": "^5 || ^6 || ^7 || ^8"
     },
     "require-dev": {
-        "ergebnis/composer-normalize": "^2.23.1",
-        "friendsofphp/php-cs-fixer": "^3.6",
-        "phpunit/phpunit": "^10",
+        "ergebnis/composer-normalize": "^2.47",
+        "phpunit/phpunit": "^10.5.62",
         "roave/security-advisories": "dev-latest",
         "squizlabs/php_codesniffer": "^3.6",
-        "vimeo/psalm": "^5"
+        "vimeo/psalm": "^6"
     },
     "minimum-stability": "stable",
     "autoload": {
-        "psr-0": {
-            "PHPDocsMD": "src/"
+        "psr-4": {
+            "PHPDocsMD\\": "src/PHPDocsMD/"
         }
     },
     "autoload-dev": {
-        "psr-0": {
-            "Acme\\": "test/"
+        "psr-4": {
+            "Acme\\": "test/Acme/",
+            "PHPDocsMD\\Tests\\": "test/"
         }
     },
     "bin": [
@@ -49,16 +47,23 @@
     "config": {
         "allow-plugins": {
             "ergebnis/composer-normalize": true
+        },
+        "platform": {
+            "php": "8.2.27"
         }
     },
     "scripts": {
         "post-autoload-dump": [
             "composer normalize"
         ],
-        "docs": "./bin/phpdoc-md generate src > docs.md",
+        "audit-deps": "composer audit",
+        "check-php-support": "php tools/check-php-support.php",
+        "docs": "./bin/phpdoc-md generate src > docs.md.tmp && mv docs.md.tmp docs.md",
+        "docs-check": "./bin/phpdoc-md generate src > docs.md.tmp && diff -u docs.md docs.md.tmp && rm docs.md.tmp",
         "lint": "vendor/bin/phpcs",
-        "lint-fix": "vendor/bin/php-cs-fixer fix --rules @PSR2 .",
+        "lint-fix": "vendor/bin/phpcbf",
         "psalm": "vendor/bin/psalm",
-        "test": "vendor/bin/phpunit"
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "@php -d xdebug.mode=coverage -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml"
     }
 }
