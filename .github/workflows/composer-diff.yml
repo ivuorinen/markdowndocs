@@ -18,7 +18,7 @@ jobs:
 
       - name: Generate composer diff
         id: composer_diff # To reference the output in comment
-        uses: IonBazan/composer-diff-action@v1
+        uses: IonBazan/composer-diff-action@e2022e8718d05cc6e4e5990a06fc928c75837f76 # v2
 
       - uses: marocchino/sticky-pull-request-comment@v3
         # An empty diff result will break this action.
