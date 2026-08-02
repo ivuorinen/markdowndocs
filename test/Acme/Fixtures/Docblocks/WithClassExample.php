@@ -23,4 +23,21 @@ class WithClassExample
     public function noop(): void
     {
     }
+
+    /**
+     * An example split into paragraphs by a blank line.
+     *
+     * The " *" line separating the two statements carries no whitespace but the
+     * newline, which the decoration stripper used to consume — splicing the two
+     * statements onto one line.
+     *
+     * @example
+     *   <?php
+     *   $first = 1;
+     *
+     *   $second = 2;
+     */
+    public function spaced(): void
+    {
+    }
 }

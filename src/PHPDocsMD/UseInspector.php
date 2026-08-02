@@ -67,6 +67,16 @@ class UseInspector
         for ($i = 0, $len = count($tokens); $i < $len; $i++) {
             $token = $tokens[$i];
 
+            // "{$var}" and "${var}" inside a string open a brace the tokenizer
+            // reports as an array token, but close it with a bare "}" that the
+            // arm below does count. Left uncounted, the depth sinks by one per
+            // interpolation and unset($classBody[$depth]) then clears the marker
+            // for a body still being read — after which a trait import in that
+            // body is taken for a file-level one and overwrites the real import.
+            if (is_array($token) && in_array($token[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true)) {
+                $depth++;
+                continue;
+            }
             if ($token === '{') {
                 $depth++;
                 if ($pendingClass) {

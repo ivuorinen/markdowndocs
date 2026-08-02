@@ -348,6 +348,21 @@ class PHPDocsMDCommandTest extends TestCase
     }
 
     /**
+     * A blank line inside an @example is part of the sample. The decoration
+     * stripper used to consume the newline of the bare " *" line that carries it,
+     * splicing the statements on either side onto one line.
+     */
+    public function testBlankLinesInsideAnExampleSurvive(): void
+    {
+        $this->tester->execute(['class' => 'Acme\\Fixtures\\Docblocks\\WithClassExample']);
+        $output = $this->tester->getDisplay();
+
+        // The blank line between the two statements has to survive as a blank line
+        $this->assertMatchesRegularExpression('/\$first = 1;\R\R\s*\$second = 2;/', $output);
+        $this->assertStringNotContainsString('$first = 1;$second', $output);
+    }
+
+    /**
      * The generator's appendExamples toggle was implemented and unit-tested but
      * no option reached it, so it was permanently on.
      */

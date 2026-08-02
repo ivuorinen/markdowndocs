@@ -336,11 +336,16 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         $docString = implode(PHP_EOL, $body);
         foreach ($classLinks as $className => $url) {
             $link = sprintf('[%s](%s) ', $className, $url);
+            // Keep the last good document if a replacement fails. preg_replace()
+            // returns null on a PCRE error — a backtrack limit on a large document
+            // is the realistic one — and null then feeds the next iteration as the
+            // subject, which returns null again. One failure would otherwise walk
+            // the whole document to null and print an empty file, successfully.
             $docString = preg_replace(
                 '/(<em>|' . $unionSeparator . '|\/)' . preg_quote($className, '/') . '(?![\w\\\\])/',
                 '$1' . str_replace(['\\', '$'], ['\\\\', '\\$'], $link),
                 $docString
-            );
+            ) ?? $docString;
         }
 
         $output->writeln(PHP_EOL . $docString, OutputInterface::OUTPUT_RAW);

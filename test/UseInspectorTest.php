@@ -214,4 +214,36 @@ class UseInspectorTest extends TestCase
             $this->inspector->getUseStatementsInString($code)
         );
     }
+
+    /**
+     * An interpolated string opens its brace with an array token but closes it
+     * with a bare "}". Counting only the closer sank the depth by one per
+     * interpolation, which cleared the class-body marker while still inside the
+     * body — and the trait import below then overwrote the file-level one.
+     */
+    public function testStringInterpolationDoesNotDriftTheBraceDepth(): void
+    {
+        $code = <<<'PHP'
+        <?php
+
+        namespace Acme;
+
+        use Vendor\Real\Timestamps;
+
+        class Foo
+        {
+            public function render(string $name): string
+            {
+                return "hello {$name}";
+            }
+
+            use Timestamps;
+        }
+        PHP;
+
+        $this->assertEquals(
+            ['Timestamps' => '\\Vendor\\Real\\Timestamps'],
+            $this->inspector->getUseStatementsInString($code)
+        );
+    }
 }

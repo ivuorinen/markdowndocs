@@ -53,9 +53,30 @@ class Utils
         'numeric-string',
         'positive-int',
         'negative-int',
+        'non-positive-int',
+        'non-negative-int',
+        'literal-int',
         'int-mask',
+        'int-mask-of',
+        'int-range',
+        'literal-string',
+        'non-falsy-string',
+        'lowercase-string',
+        'non-empty-lowercase-string',
+        'interface-string',
+        'trait-string',
+        'enum-string',
+        'callable-string',
+        'callable-array',
+        'associative-array',
+        'class-string-map',
+        'properties-of',
         'key-of',
         'value-of',
+        // Deliberately absent: "scalar", "numeric", "arraykey" and friends. They
+        // are pseudo-types too, but they carry no hyphen and are not reserved, so
+        // a real class may be called Scalar or Numeric — listing them would make
+        // that class un-referenceable. The hyphen is what makes the rest safe.
     ];
 
     public static function isNativeType(string $type = ''): bool

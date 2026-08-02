@@ -179,6 +179,11 @@ class ReflectorTest extends TestCase
             '\\Acme\\Fixtures\\Types\\Marker & \\Acme\\Fixtures\\Types\\Tagged',
             $byName['intersection']
         );
+
+        // A declared "array" used to overwrite the documented element type, so
+        // adding a return type declaration silently cost documentation.
+        $this->assertEquals('\\Acme\\Fixtures\\Types\\Marker[]', $byName['declaredArrayOfObjects']);
+        $this->assertEquals($byName['undeclaredArrayOfObjects'], $byName['declaredArrayOfObjects']);
     }
 
     /**

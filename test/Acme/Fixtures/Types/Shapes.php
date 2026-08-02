@@ -44,4 +44,24 @@ class Shapes
     public function nullableParam(?Marker $marker = null, bool $flag = false): void
     {
     }
+
+    /**
+     * A declared "array" is less specific than the documented element type.
+     * Declaring the return type must not cost the documentation that the
+     * otherwise identical undeclaredArrayOfObjects() keeps.
+     *
+     * @return \Acme\Fixtures\Types\Marker[]
+     */
+    public function declaredArrayOfObjects(): array
+    {
+        return [];
+    }
+
+    /**
+     * @return \Acme\Fixtures\Types\Marker[]
+     */
+    public function undeclaredArrayOfObjects()
+    {
+        return [];
+    }
 }

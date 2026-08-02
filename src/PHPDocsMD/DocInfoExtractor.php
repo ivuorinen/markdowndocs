@@ -44,10 +44,16 @@ class DocInfoExtractor
         // The "*" decoration only ever sits at the start of a line, so the match
         // is anchored there. Unanchored, it also ate an asterisk in the prose
         // together with the space on each side, turning "width * height" into
-        // "widthheight". "$1" re-emits the indentation minus the one space the
-        // pattern consumes, keeping the leading whitespace that
-        // MDTableGenerator::formatExampleComment() measures.
-        return trim(trim((string)preg_replace('/^([ \t]*)[ \t]\*(\s)/m', '$1', $comment)), '*');
+        // "widthheight".
+        //
+        // Both captures are re-emitted. "$1" keeps the indentation that
+        // MDTableGenerator::formatExampleComment() measures; "$2" matters on a
+        // line holding nothing but " *", where the only whitespace left for
+        // "(\s)" to match is the newline itself — dropping it spliced that line
+        // onto the next one and silently deleted every blank line inside an
+        // @example block. The single leading space this leaves on each line is
+        // uniform, so dedent() takes it back off.
+        return trim(trim((string)preg_replace('/^([ \t]*)[ \t]\*(\s)/m', '$1$2', $comment)), '*');
     }
 
     /**
@@ -69,6 +75,15 @@ class DocInfoExtractor
 
             $words = $this->getWordsFromLine($line);
             if (empty($words)) {
+                // Inside an example a blank line is part of the sample; anywhere
+                // else it is only docblock spacing and carries nothing. Skipping
+                // it unconditionally is the other half of why the paragraph
+                // breaks in an @example disappeared — getCleanDocComment() has
+                // to preserve the line, and this has to keep it once preserved.
+                if ($current_tag === 'example') {
+                    $tags['example'] .= PHP_EOL;
+                }
+
                 continue;
             }
 

@@ -243,7 +243,14 @@ class Reflector
         // the opposite of the truth. The declaration is authoritative, and
         // getReturnTypeFromMethod() falls back to the docblock when it is empty.
         if ($method->hasReturnType()) {
-            $returnType = $this->getReturnTypeFromMethod($method, $returnType);
+            $declared = $this->getReturnTypeFromMethod($method, $returnType);
+            // "array" against "@return \Foo[]": the docblock is the more specific
+            // of the two, so keep it — createParameterEntity() already carves the
+            // same case out, and without this, declaring ": array" *loses* the
+            // element type that the identical undeclared method keeps.
+            if (!($declared === 'array' && str_ends_with($returnType, '[]'))) {
+                $returnType = $declared;
+            }
         }
 
         if (empty($returnType)) {
@@ -534,10 +541,31 @@ class Reflector
         // preg_match() returns false rather than throwing on a malformed pattern,
         // and array_filter() reads false as "exclude" — so an unvalidated regex
         // dropped every method from every class and still exited 0.
-        if ($methodRegex !== '' && @preg_match($methodRegex, '') === false) {
-            throw new InvalidArgumentException(
-                sprintf('Invalid method regex "%s": %s', $methodRegex, preg_last_error_msg())
-            );
+        if ($methodRegex !== '') {
+            // The reason comes from the warning, not from preg_last_error_msg():
+            // a pattern that fails to *compile* never sets the PCRE runtime error
+            // code, so that function reports whatever is left over from before —
+            // "No error" or "Internal error" depending on the PHP build. The
+            // warning carries the only useful text ("Delimiter must not be
+            // alphanumeric...") and is what a user needs to fix the argument.
+            $reason = '';
+            set_error_handler(static function (int $errno, string $message) use (&$reason): bool {
+                $reason = $message;
+
+                return true;
+            });
+
+            try {
+                $valid = preg_match($methodRegex, '') !== false;
+            } finally {
+                restore_error_handler();
+            }
+
+            if (!$valid) {
+                throw new InvalidArgumentException(
+                    sprintf('Invalid method regex "%s": %s', $methodRegex, $reason)
+                );
+            }
         }
 
         $this->methodRegex = $methodRegex;
