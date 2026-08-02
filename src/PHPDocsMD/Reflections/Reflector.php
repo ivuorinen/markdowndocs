@@ -149,7 +149,7 @@ class Reflector
         ReflectionMethod $method,
         ClassEntity $class,
         array $useStatements
-    ): bool|FunctionEntity {
+    ): FunctionEntity|false {
         $func = new FunctionEntity();
         $docInfo = $this->docInfoExtractor->extractInfo($method);
         $this->docInfoExtractor->applyInfoToEntity($method, $docInfo, $func);
@@ -361,7 +361,12 @@ class Reflector
             $type = false;
         }
 
-        if ($type && $def &&
+        // $hasDefault, not $def: "a default exists" is what this asks, and $def is
+        // by now a formatted string — var_export(0) is "0", which is falsy. The
+        // two agree today only because getTypeFromVal() reports int as 'mixed'
+        // and the 'mixed' arm below prepends nothing; give it an is_int() branch
+        // and the truthiness test would start dropping the merge for 0.
+        if ($type && $hasDefault &&
             !empty($docs['type']) &&
             $docs['type'] !== $type &&
             !str_contains($docs['type'], '|')

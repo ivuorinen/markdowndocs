@@ -196,6 +196,16 @@ class ClassWithFalsyDefaults
     public function falsy($int = 0, $float = 0.0, $bool = false, $none = null)
     {
     }
+
+    /**
+     * A documented type alongside a 0 default: the branch that merges the two
+     * must not key off the formatted default, which is the falsy string "0".
+     *
+     * @param string $documented
+     */
+    public function falsyWithDocumentedType($documented = 0)
+    {
+    }
 }
 
 class ClassWithFluentInterface

@@ -268,6 +268,23 @@ class ReflectorTest extends TestCase
     }
 
     /**
+     * The documented type survives a 0 default. Guards the merge branch against
+     * being keyed off the formatted default again — var_export(0) is "0", which
+     * is falsy, so that test would skip the merge for this parameter alone.
+     *
+     * @throws \ReflectionException
+     */
+    public function testZeroDefaultKeepsDocumentedType(): void
+    {
+        $reflector = new Reflector('Acme\\ClassWithFalsyDefaults');
+        $functions = $reflector->getClassEntity()->getFunctions();
+        $params    = $functions[1]->getParams();
+
+        $this->assertEquals('0', $params[0]->getDefault());
+        $this->assertEquals('string', $params[0]->getType());
+    }
+
+    /**
      * "@return self" refers to the declaring class, never to the method.
      *
      * @throws \ReflectionException
