@@ -31,22 +31,23 @@ jobs:
         operating-system: ['ubuntu-latest']
         # Every PHP branch currently supported by php.net. Keep in agreement with
         # require.php, config.platform.php and README's Requirements section.
-        php-versions: ['8.2', '8.3', '8.4', '8.5']
+        php-versions: ['8.3', '8.4', '8.5']
         dependencies: ['locked']
         include:
-          # The committed lock pins one dependency set, so the four legs above all
+          # The committed lock pins one dependency set, so the three legs above all
           # install symfony/console 7 regardless of PHP version. These two legs
           # cover the ends of the declared range instead:
           #
           #   highest — symfony/console 8 (needs PHP >= 8.4.1), exercising the
           #             Application::addCommand path the lock never reaches.
-          #   lowest  — symfony/console 5.4, the oldest the constraint allows,
-          #             run on the oldest PHP we support.
+          #   lowest  — symfony/console 6, the oldest the constraint allows,
+          #             run on the oldest PHP we support. This is the leg that
+          #             covers Application::add(), removed in console 8.
           - operating-system: 'ubuntu-latest'
             php-versions: '8.5'
             dependencies: 'highest'
           - operating-system: 'ubuntu-latest'
-            php-versions: '8.2'
+            php-versions: '8.3'
             dependencies: 'lowest'
 
     steps:
@@ -91,7 +92,7 @@ jobs:
 
       - name: Install dependencies (newest allowed)
         if: matrix.dependencies == 'highest'
-        # Drop the 8.2 resolution floor so Symfony 8 (php >= 8.4.1) can be chosen.
+        # Drop the 8.3 resolution floor so Symfony 8 (php >= 8.4.1) can be chosen.
         run: |
           composer config --unset platform.php
           composer update --prefer-dist --prefer-stable --no-progress
@@ -129,13 +130,13 @@ jobs:
         run: composer psalm
 
       # Locked legs only. docs.md documents this package's own classes, two of
-      # which extend symfony/console — so the inherited surface, and therefore
-      # the generated document, changes with the resolved Symfony version:
-      # console 5.4 contributes Application::reset() and does not put
-      # SignalableCommandInterface on Command. The committed file is generated
-      # from the lock, so only a leg installed from the lock can compare against
-      # it; on the other two this compares against a moving target and fails for
-      # a reason that is not a defect.
+      # which extend symfony/console — so the inherited methods and interfaces it
+      # renders, and therefore the generated document, change with the resolved
+      # Symfony version. The committed file is generated from the lock, so only a
+      # leg installed from the lock can compare against it; on the other two this
+      # compares against a moving target and fails for a reason that is not a
+      # defect. (Observed with console 5.4, which contributed an extra inherited
+      # method and dropped an interface relative to the locked 7.4.)
       - name: Check docs.md is up to date
         if: matrix.dependencies == 'locked'
         run: composer docs-check

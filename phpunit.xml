@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit
-        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
-        bootstrap="vendor/autoload.php"
-        colors="true"
-        cacheDirectory=".phpunit.cache"
-        failOnDeprecation="true"
-        failOnNotice="true"
-        failOnWarning="true"
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         failOnDeprecation="true"
+         failOnNotice="true"
+         failOnWarning="true"
 >
   <testsuites>
     <testsuite name="Tests">
@@ -15,12 +14,15 @@
     </testsuite>
   </testsuites>
   <!--
-    restrict* confines the failOn* gates above to first-party code. Old but still
-    supported dependencies (symfony/console 5.4 on the prefer-lowest CI leg) emit
+    These confine the failOn* gates above to first-party code. Old but still
+    supported dependencies (symfony/console 6 on the prefer-lowest CI leg) emit
     deprecations on newer PHP that this project cannot fix; our own must still fail.
+
+    PHPUnit 11 replaced restrictDeprecations with ignoreIndirectDeprecations,
+    which states the same rule from the other side: a deprecation raised outside
+    <source> no longer counts.
   -->
-  <source
-          restrictDeprecations="true"
+  <source ignoreIndirectDeprecations="true"
           restrictNotices="true"
           restrictWarnings="true"
   >
