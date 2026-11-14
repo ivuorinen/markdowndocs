@@ -27,7 +27,7 @@
         "phpunit/phpunit": "^12.5.33",
         "roave/security-advisories": "dev-latest",
         "squizlabs/php_codesniffer": "^4.0",
-        "vimeo/psalm": "^6"
+        "vimeo/psalm": "^7"
     },
     "minimum-stability": "stable",
     "autoload": {
