@@ -4,10 +4,14 @@
  * Asserts that every declaration of which PHP versions this project supports
  * agrees with every other one.
  *
- * The supported range is stated in five places. They drifted apart once already:
+ * The supported range is stated in four places. They drifted apart once already:
  * a composer.lock resolved on the maintainer's PHP left two of the four
  * CI-tested versions unable to install. This check makes that class of drift a
  * build failure instead of a surprise.
+ *
+ * psalm.xml is not one of them: without a phpVersion attribute psalm reads the
+ * floor from composer.json's require.php itself, so stating it there again
+ * would only add a fifth place to keep in step.
  *
  * Run with: composer check-php-support
  */
@@ -48,14 +52,7 @@ if (!str_starts_with($platform, "$floor.")) {
         . 'the lock would resolve against a different version than the package claims to support';
 }
 
-// --- 3. psalm.xml: analysis target must be the floor -------------------------
-$psalmXml = (string)file_get_contents("$root/psalm.xml");
-$psalmVersion = $matchOne('/phpVersion="([^"]+)"/', $psalmXml, 'psalm.xml phpVersion');
-if ($psalmVersion !== null && $psalmVersion !== $floor) {
-    $errors[] = "psalm.xml phpVersion is \"$psalmVersion\" but the supported floor is $floor";
-}
-
-// --- 4. CI matrix: must start at the floor ----------------------------------
+// --- 3. CI matrix: must start at the floor ----------------------------------
 $workflow = (string)file_get_contents("$root/.github/workflows/php.yml");
 $matrixRaw = $matchOne("/php-versions:\s*\[([^\]]+)\]/", $workflow, 'the CI php-versions matrix');
 $matrix = [];
@@ -69,7 +66,7 @@ if ($matrixRaw !== null) {
     }
 }
 
-// --- 5. README: must list exactly the CI matrix ------------------------------
+// --- 4. README: must list exactly the CI matrix ------------------------------
 $readmeMd = (string)file_get_contents("$root/README.md");
 $readmeRaw = $matchOne('/^- PHP ([^—\n]+)/m', $readmeMd, "README's PHP requirement line");
 if ($readmeRaw !== null && $matrix !== []) {
@@ -88,16 +85,15 @@ if ($errors !== []) {
         fwrite(STDERR, "  - $error\n");
     }
     fwrite(STDERR, "\nThese must all state the same thing: composer.json require.php,\n");
-    fwrite(STDERR, "composer.json config.platform.php, psalm.xml phpVersion,\n");
-    fwrite(STDERR, ".github/workflows/php.yml php-versions, and README.md Requirements.\n");
+    fwrite(STDERR, "composer.json config.platform.php, .github/workflows/php.yml php-versions,\n");
+    fwrite(STDERR, "and README.md Requirements.\n");
     exit(1);
 }
 
 printf(
-    "PHP support is consistent: floor %s, platform %s, psalm %s, tested on %s\n",
+    "PHP support is consistent: floor %s, platform %s, tested on %s\n",
     $floor,
     $platform,
-    $psalmVersion,
     implode(', ', $matrix)
 );
 exit(0);
