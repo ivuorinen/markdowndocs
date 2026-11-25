@@ -12,8 +12,9 @@ use PHPDocsMD\Entities\FunctionEntity;
  *
  * @package PHPDocsMD
  */
-class FunctionFinder
+final class FunctionFinder
 {
+    /** @var array<string, ClassEntity> */
     private array $cache = [];
 
     /**

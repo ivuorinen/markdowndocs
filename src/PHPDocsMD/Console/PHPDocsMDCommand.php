@@ -23,31 +23,28 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package PHPDocsMD\Console
  */
-class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
+final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 {
-    public const ARG_CLASS = 'class';
-    public const OPT_BOOTSTRAP = 'bootstrap';
-    public const OPT_IGNORE = 'ignore';
-    public const OPT_VISIBILITY = 'visibility';
-    public const OPT_METHOD_REGEX = 'methodRegex';
-    public const OPT_TABLE_GENERATOR = 'tableGenerator';
-    public const OPT_SEE = 'see';
-    public const OPT_NO_INTERNAL = 'no-internal';
-    public const OPT_NO_EXAMPLES = 'no-examples';
+    public const string ARG_CLASS = 'class';
+    public const string OPT_BOOTSTRAP = 'bootstrap';
+    public const string OPT_IGNORE = 'ignore';
+    public const string OPT_VISIBILITY = 'visibility';
+    public const string OPT_METHOD_REGEX = 'methodRegex';
+    public const string OPT_TABLE_GENERATOR = 'tableGenerator';
+    public const string OPT_SEE = 'see';
+    public const string OPT_NO_INTERNAL = 'no-internal';
+    public const string OPT_NO_EXAMPLES = 'no-examples';
 
     /**
-     * @var array
+     * @var array<string, ClassEntity> reflected classes by the name they were asked for
      */
     private array $memory = [];
 
     /**
-     * @var array
+     * @var list<string>
      */
     private array $visibilityFilter = [];
 
-    /**
-     * @var string
-     */
     private string $methodRegex = '';
 
     /**
@@ -132,26 +129,25 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
             ? $output->getErrorOutput()
             : $output;
 
-        $classes = $input->getArgument(self::ARG_CLASS);
-        $bootstrap = $input->getOption(self::OPT_BOOTSTRAP);
-        $ignore = explode(',', $input->getOption(self::OPT_IGNORE));
-        $this->visibilityFilter = empty($input->getOption(self::OPT_VISIBILITY))
+        $classes = self::stringInput($input->getArgument(self::ARG_CLASS));
+        $bootstrap = self::stringInput($input->getOption(self::OPT_BOOTSTRAP));
+        $ignore = explode(',', self::stringInput($input->getOption(self::OPT_IGNORE)));
+        $visibility = self::stringInput($input->getOption(self::OPT_VISIBILITY));
+        $this->visibilityFilter = $visibility === ''
             ? ['public', 'protected', 'abstract', 'final']
-            : array_map(
-                'trim',
-                preg_split('/\\s*,\\s*/', $input->getOption(self::OPT_VISIBILITY))
-            );
-        $this->methodRegex = (string)$input->getOption(self::OPT_METHOD_REGEX);
-        $includeSee = $input->getOption(self::OPT_SEE);
-        $noInternal = $input->getOption(self::OPT_NO_INTERNAL);
-        $appendExamples = !$input->getOption(self::OPT_NO_EXAMPLES);
+            : array_map('trim', explode(',', $visibility));
+        $this->methodRegex = self::stringInput($input->getOption(self::OPT_METHOD_REGEX));
+        $includeSee = $input->getOption(self::OPT_SEE) === true;
+        $noInternal = $input->getOption(self::OPT_NO_INTERNAL) === true;
+        $appendExamples = $input->getOption(self::OPT_NO_EXAMPLES) !== true;
         $requestingOneClass = false;
 
-        if ($bootstrap) {
+        if ($bootstrap !== '') {
             // A "./" prefix resolves against the working directory and skips the
             // include_path, which is what prefixing getcwd() did — but getcwd()
             // returns false once that directory is deleted, and false
             // concatenates to "", resolving the file against the filesystem root.
+            /** @psalm-suppress UnresolvableInclude The path is the user's --bootstrap argument. */
             require_once str_starts_with($bootstrap, '/') ? $bootstrap : './' . $bootstrap;
         }
 
@@ -185,8 +181,9 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
         // VALUE_OPTIONAL yields null, not the declared default, when the flag is
         // written with no value and no token follows it.
-        $tableGeneratorSlug = $input->getOption(self::OPT_TABLE_GENERATOR) ?? 'default';
-        $tableGenerator = $this->buildTableGenerator($tableGeneratorSlug);
+        $tableGenerator = $this->buildTableGenerator(
+            self::stringInput($input->getOption(self::OPT_TABLE_GENERATOR) ?? 'default')
+        );
 
         $tableOfContent = [];
         $body = [];
@@ -488,6 +485,15 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
     }
 
     /**
+     * An option or argument as a string. Symfony types every input value as
+     * mixed, and an option given without a value arrives as null.
+     */
+    private static function stringInput(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
+    }
+
+    /**
      * Report on stderr each docblock tag that could not be read, naming where
      * it is. The documentation such a tag carried is missing from the output,
      * and this message is the only sign of it.
@@ -569,6 +575,8 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
     /**
      * The first name-like token after the given position, or '' if the next
      * meaningful token is not a name.
+     *
+     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens token_get_all() output
      */
     private function readNameAfter(array $tokens, int $index): string
     {
@@ -591,6 +599,9 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         return '';
     }
 
+    /**
+     * @param list<string> $ignores
+     */
     private function shouldIgnoreDirectory(string $dirName, array $ignores): bool
     {
         foreach ($ignores as $dir) {
@@ -607,7 +618,7 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
     protected function buildTableGenerator(string $tableGeneratorSlug = 'default'): TableGenerator
     {
         if (class_exists($tableGeneratorSlug)) {
-            if (!in_array(TableGenerator::class, class_implements($tableGeneratorSlug), true)) {
+            if (!is_a($tableGeneratorSlug, TableGenerator::class, true)) {
                 throw new InvalidArgumentException(
                     sprintf(
                         'The table generator class should implement the %s interface.',

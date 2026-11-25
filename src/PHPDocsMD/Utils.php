@@ -12,7 +12,7 @@ use function strtolower;
  *
  * @package PHPDocsMD
  */
-class Utils
+final class Utils
 {
     public static array $nativeTypes = [
         'mixed',

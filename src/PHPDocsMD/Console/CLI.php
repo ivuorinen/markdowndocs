@@ -14,9 +14,9 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package PHPDocsMD\Console
  */
-class CLI extends Application
+final class CLI extends Application
 {
-    private const PACKAGE = 'ivuorinen/markdowndocs';
+    private const string PACKAGE = 'ivuorinen/markdowndocs';
 
     public function __construct()
     {

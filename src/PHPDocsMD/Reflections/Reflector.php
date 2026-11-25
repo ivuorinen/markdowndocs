@@ -34,9 +34,9 @@ use function count;
  *
  * @package PHPDocsMD
  */
-class Reflector
+final class Reflector
 {
-    private const VISIBILITIES = [
+    private const array VISIBILITIES = [
         'public' => ReflectionMethod::IS_PUBLIC,
         'protected' => ReflectionMethod::IS_PROTECTED,
         'abstract' => ReflectionMethod::IS_ABSTRACT,
@@ -48,6 +48,7 @@ class Reflector
     private DocInfoExtractor $docInfoExtractor;
     private ClassEntityFactory $classEntityFactory;
     private UseInspector $useInspector;
+    /** @var list<string> */
     private array $visibilityFilter = [];
     private string $methodRegex = '';
 
@@ -98,6 +99,7 @@ class Reflector
     }
 
     /**
+     * @return list<FunctionEntity>
      * @throws \ReflectionException
      */
     private function getClassFunctions(
@@ -120,10 +122,11 @@ class Reflector
         }
 
         if ($this->methodRegex !== '') {
+            $methodRegex = $this->methodRegex;
             $methodReflections = array_filter(
                 $methodReflections,
                 fn (ReflectionMethod $reflectionMethod) => preg_match(
-                    $this->methodRegex,
+                    $methodRegex,
                     $reflectionMethod->name
                 )
             );

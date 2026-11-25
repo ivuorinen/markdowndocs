@@ -23,10 +23,11 @@ use PHPDocsMD\Entities\FunctionEntity;
  *
  * @package PHPDocsMD
  */
-class MDTableGenerator implements TableGenerator
+final class MDTableGenerator implements TableGenerator
 {
     private string $fullClassName = '';
     private string $markdown = '';
+    /** @var array<string, string> example text by function name */
     private array $examples = [];
     private bool $appendExamples = true;
     private bool $declareAbstraction = true;
@@ -212,9 +213,8 @@ class MDTableGenerator implements TableGenerator
         // @example written in the markdown style carries its own ```, which
         // closed this one on its opening line and left the example rendering as
         // prose between two empty code blocks.
-        $longest = preg_match_all('/`{3,}/', $example, $matches)
-            ? max(array_map('strlen', $matches[0]))
-            : 0;
+        preg_match_all('/`{3,}/', $example, $matches);
+        $longest = max([0, ...array_map('strlen', $matches[0])]);
         $fence = str_repeat('`', max(3, $longest + 1));
 
         return sprintf("%s%s\n%s\n%s", $fence, $type, $example, $fence);
@@ -239,7 +239,9 @@ class MDTableGenerator implements TableGenerator
             $indent = $indent === null ? $width : min($indent, $width);
         }
 
-        return $indent ? (string)preg_replace('/^ {' . $indent . '}/m', '', $text) : $text;
+        return $indent === null || $indent === 0
+            ? $text
+            : (string)preg_replace('/^ {' . $indent . '}/m', '', $text);
     }
 
     private static function stripCodeTags(string $example): string
@@ -254,7 +256,7 @@ class MDTableGenerator implements TableGenerator
         preg_match_all('#<code[^>]*>(.*?)</code>#s', $example, $matches);
         $blocks = $matches[1];
         if ($blocks !== []) {
-            return (string)end($blocks);
+            return end($blocks);
         }
 
         // Opening tag with no closing tag: keep everything after it.

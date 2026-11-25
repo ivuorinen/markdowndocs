@@ -11,10 +11,10 @@ use PHPDocsMD\Utils;
  *
  * @package PHPDocsMD
  */
-class ClassEntity extends CodeEntity
+final class ClassEntity extends CodeEntity
 {
     /**
-     * @var FunctionEntity[]
+     * @var list<FunctionEntity>
      */
     private array $functions = [];
     private bool $isInterface = false;
@@ -22,6 +22,7 @@ class ClassEntity extends CodeEntity
     private bool $hasIgnoreTag = false;
     private bool $hasInternalTag = false;
     private string $extends = '';
+    /** @var list<string> */
     private array $interfaces = [];
     private bool $isTrait = false;
     private bool $isEnum = false;
@@ -80,13 +81,16 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    /**
+     * @return list<FunctionEntity>
+     */
     public function getFunctions(): array
     {
         return $this->functions;
     }
 
     /**
-     * @param FunctionEntity[] $functions
+     * @param list<FunctionEntity> $functions
      */
     public function setFunctions(array $functions): self
     {

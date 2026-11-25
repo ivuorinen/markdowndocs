@@ -15,12 +15,12 @@ use function is_array;
  *
  * @package PHPDocsMD
  */
-class UseInspector
+final class UseInspector
 {
     /**
      * Tokens that carry no meaning between a `use` keyword and the name it imports.
      */
-    private const SKIPPABLE = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+    private const array SKIPPABLE = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
 
     /**
      * The classes the file declaring this class imports, keyed by the name the
@@ -32,7 +32,7 @@ class UseInspector
     {
         $classUseStatements = [];
         $classFile = $reflectionClass->getFileName();
-        if ($classFile) {
+        if ($classFile !== false) {
             $classUseStatements = $this->getUseStatementsInFile($classFile);
         }
 
@@ -141,6 +141,8 @@ class UseInspector
      * The walk cannot run off the front: token_get_all() always opens with the
      * open tag or inline HTML, neither of which is skippable, and that first
      * token is never the T_USE or T_CLASS this is asked about.
+     *
+     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens token_get_all() output
      */
     private function previousMeaningfulText(array $tokens, int $index): string
     {
@@ -154,6 +156,8 @@ class UseInspector
 
     /**
      * Read one import statement, expanding a group import into its members.
+     *
+     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens token_get_all() output
      *
      * @return array<string, string> local name => imported name
      */
@@ -215,14 +219,20 @@ class UseInspector
     }
 
     /**
-     * @param array<string, string>       $imports
-     * @param array<string, string|bool>  $state
+     * @param array<string, string> $imports
+     * @param array{
+     *     prefix: string,
+     *     name: string,
+     *     alias: string,
+     *     readingAlias: bool,
+     *     notAClass: bool
+     * } $state
      */
     private function flush(array &$imports, array &$state): void
     {
-        $name = trim((string)$state['name']);
-        $alias = trim((string)$state['alias']);
-        $notAClass = (bool)$state['notAClass'];
+        $name = trim($state['name']);
+        $alias = trim($state['alias']);
+        $notAClass = $state['notAClass'];
 
         $state['name'] = '';
         $state['alias'] = '';
@@ -235,7 +245,7 @@ class UseInspector
 
         $imported = $state['prefix'] . $name;
         $segments = explode('\\', $imported);
-        $localName = $alias !== '' ? $alias : (string)end($segments);
+        $localName = $alias !== '' ? $alias : end($segments);
 
         $imports[$localName] = $imported;
     }

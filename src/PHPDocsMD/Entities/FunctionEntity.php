@@ -9,10 +9,10 @@ namespace PHPDocsMD\Entities;
  *
  * @package PHPDocsMD
  */
-class FunctionEntity extends CodeEntity
+final class FunctionEntity extends CodeEntity
 {
     /**
-     * @var \PHPDocsMD\Entities\ParamEntity[]
+     * @var list<ParamEntity>
      */
     private array $params = [];
     private string $returnType = 'void';
@@ -60,13 +60,16 @@ class FunctionEntity extends CodeEntity
         return !empty($this->params);
     }
 
+    /**
+     * @return list<ParamEntity>
+     */
     public function getParams(): array
     {
         return $this->params;
     }
 
     /**
-     * @param \PHPDocsMD\Entities\ParamEntity[] $params
+     * @param list<ParamEntity> $params
      */
     public function setParams(array $params): FunctionEntity
     {

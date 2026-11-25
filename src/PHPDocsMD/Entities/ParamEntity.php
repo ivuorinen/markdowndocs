@@ -9,7 +9,7 @@ namespace PHPDocsMD\Entities;
  *
  * @package PHPDocsMD
  */
-class ParamEntity extends CodeEntity
+final class ParamEntity extends CodeEntity
 {
     private string $default = '';
     private bool $hasDefault = false;

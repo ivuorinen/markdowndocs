@@ -185,7 +185,7 @@
 | public | <strong>generateAnchor()</strong> : <em>string</em><br /><em>Generates an anchor link out of the generated title (see generateTitle)</em> |
 | public | <strong>generateTitle(</strong><em>string</em> <strong>$format=`'%label%: %name% %extra%'`)</strong> : <em>string</em><br /><em>Generate a title describing the class this object is referring to</em> |
 | public | <strong>getExtends()</strong> : <em>string</em> |
-| public | <strong>getFunctions()</strong> : <em>array</em> |
+| public | <strong>getFunctions()</strong> : <em>list&lt;[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)&gt;</em> |
 | public | <strong>getInterfaces()</strong> : <em>list&lt;string&gt;</em> |
 | public | <strong>hasIgnoreTag(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
 | public | <strong>hasInternalTag(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
@@ -195,7 +195,7 @@
 | public | <strong>isSame(</strong><em>object \| string</em> <strong>$class)</strong> : <em>bool</em><br /><em>Check whether this object is referring to given class name or object instance</em> |
 | public | <strong>isTrait(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
 | public | <strong>setExtends(</strong><em>string</em> <strong>$extends)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Stored with a leading backslash, the form type cells and section anchors compare against.</em> |
-| public | <strong>setFunctions(</strong><em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)[]</em> <strong>$functions)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
+| public | <strong>setFunctions(</strong><em>list&lt;[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)&gt;</em> <strong>$functions)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
 | public | <strong>setInterfaces(</strong><em>list&lt;string&gt;</em> <strong>$implements)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Each name is stored with a leading backslash, the form type cells and section anchors compare against.</em> |
 | public | <strong>setName(</strong><em>string</em> <strong>$name)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Stored with a leading backslash, the form type cells and section anchors compare against.</em> |
 
@@ -223,7 +223,7 @@
 | public | <strong>setExample(</strong><em>string</em> <strong>$example)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
 | public | <strong>setName(</strong><em>string</em> <strong>$name)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
 | public | <strong>setProblems(</strong><em>list&lt;string&gt;</em> <strong>$problems)</strong> : <em>static</em> |
-| public | <strong>setSee(</strong><em>array</em> <strong>$see)</strong> : <em>static</em><br /><em>Returns static so subclasses inherit this without having to override it only to keep their own return type — ClassEntity and FunctionEntity each carried a verbatim copy of this method and a shadowing $see property.</em> |
+| public | <strong>setSee(</strong><em>array&lt;string&gt;</em> <strong>$see)</strong> : <em>static</em><br /><em>Returns static so subclasses inherit this without having to override it only to keep their own return type — ClassEntity and FunctionEntity each carried a verbatim copy of this method and a shadowing $see property.</em> |
 
 
 <hr /><a id="class-phpdocsmd-entities-functionentity"></a>
@@ -235,7 +235,7 @@
 | Visibility | Function |
 |:-----------|:---------|
 | public | <strong>getClass()</strong> : <em>string</em> |
-| public | <strong>getParams()</strong> : <em>array</em> |
+| public | <strong>getParams()</strong> : <em>list&lt;[\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)&gt;</em> |
 | public | <strong>getReturnType()</strong> : <em>string</em> |
 | public | <strong>getVisibility()</strong> : <em>string</em> |
 | public | <strong>hasParams()</strong> : <em>bool</em> |
@@ -244,7 +244,7 @@
 | public | <strong>setAbstract(</strong><em>bool</em> <strong>$abstract)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
 | public | <strong>setClass(</strong><em>string</em> <strong>$class)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
 | public | <strong>setIsStatic(</strong><em>bool</em> <strong>$isStatic)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
-| public | <strong>setParams(</strong><em>[\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)[]</em> <strong>$params)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
+| public | <strong>setParams(</strong><em>list&lt;[\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)&gt;</em> <strong>$params)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
 | public | <strong>setReturnType(</strong><em>string</em> <strong>$returnType)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
 | public | <strong>setVisibility(</strong><em>string</em> <strong>$visibility)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)</em> |
 

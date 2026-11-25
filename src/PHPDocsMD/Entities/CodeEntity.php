@@ -17,6 +17,7 @@ class CodeEntity
     private bool $isInternal = false;
     private string $deprecationMessage = '';
     private string $example = '';
+    /** @var list<string> */
     private array $see = [];
     /** @var list<string> */
     private array $problems = [];
@@ -95,6 +96,8 @@ class CodeEntity
      * Returns static so subclasses inherit this without having to override it
      * only to keep their own return type — ClassEntity and FunctionEntity each
      * carried a verbatim copy of this method and a shadowing $see property.
+     *
+     * @param array<string> $see
      */
     public function setSee(array $see): static
     {

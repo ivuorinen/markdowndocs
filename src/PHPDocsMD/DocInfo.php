@@ -24,7 +24,7 @@ namespace PHPDocsMD;
  *
  * @package PHPDocsMD
  */
-class DocInfo
+final class DocInfo
 {
     /**
      * What an unwritten tag reads as. 'example' and 'deprecated' hold strings,

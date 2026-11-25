@@ -12,7 +12,7 @@ use PHPDocsMD\Entities\ClassEntity;
  *
  * @package PHPDocsMD
  */
-class ClassEntityFactory
+final class ClassEntityFactory
 {
     private DocInfoExtractor $docInfoExtractor;
 
