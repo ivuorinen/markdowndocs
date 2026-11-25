@@ -101,7 +101,25 @@ final class DocInfoExtractor
             [...$this->localNamesOf($class), ...self::localNames($doc)]
         );
 
-        $data = self::description($doc);
+        return new DocInfo(
+            self::description($doc) + self::typeTags($doc, $resolver) + self::proseTags($doc) + self::flags($doc)
+        );
+    }
+
+    /**
+     * The tags that carry types — the parameters and the return type — and a
+     * message for each of them the parser could not read. A key is present
+     * only when the docblock has such a tag.
+     *
+     * @return array{
+     *     params?: array<string, array{description: string, name: string, type?: string, default: false}>,
+     *     problems?: list<string>,
+     *     return?: string
+     * }
+     */
+    private static function typeTags(PhpDocNode $doc, TypeResolver $resolver): array
+    {
+        $data = [];
         $params = self::params($doc, $resolver);
         if ($params !== []) {
             $data['params'] = $params;
@@ -118,6 +136,18 @@ final class DocInfoExtractor
             }
         }
 
+        return $data;
+    }
+
+    /**
+     * The tags that carry text: the deprecation notice, the references and
+     * the examples. A key is present only when the docblock has such a tag.
+     *
+     * @return array{deprecated?: string, see?: list<string>, example?: string}
+     */
+    private static function proseTags(PhpDocNode $doc): array
+    {
+        $data = [];
         // Presence of the tag, not the message: DocInfo tells "deprecated" from
         // "deprecated without a reason" by whether the key exists.
         $deprecations = $doc->getDeprecatedTagValues();
@@ -148,14 +178,25 @@ final class DocInfoExtractor
             $data['example'] = implode(PHP_EOL . PHP_EOL, $examples);
         }
 
+        return $data;
+    }
+
+    /**
+     * The flag tags the docblock carries, each spelling under its one key.
+     *
+     * @return array{ignore?: true, internal?: true, inheritDoc?: true}
+     */
+    private static function flags(PhpDocNode $doc): array
+    {
+        $flags = [];
         foreach ($doc->getTags() as $tag) {
             $flag = self::FLAG_TAGS[strtolower($tag->name)] ?? null;
             if ($flag !== null) {
-                $data[$flag] = true;
+                $flags[$flag] = true;
             }
         }
 
-        return new DocInfo($data);
+        return $flags;
     }
 
     private function parse(string $comment): PhpDocNode
