@@ -396,8 +396,10 @@ final class Reflector
      * a class name the docblock resolved differently from the declaration.
      *
      * A template or type alias the docblock declares refines whatever it is
-     * paired with: its bound is not written here, and PHP and the analysers
-     * hold it to the declaration, so "@param T $x" on "object $x" is "T".
+     * paired with but null: its bound is not written here, and PHP and the
+     * analysers hold it to the declaration, so "@param T $x" on "object $x"
+     * is "T". On "?object $x" it is "T | null" — the declaration accepts null,
+     * and a name standing in for an object type does not say so.
      *
      * @param list<TypeNode> $documented
      *
@@ -409,7 +411,7 @@ final class Reflector
         foreach (TypeResolver::members($declared) as $declaredMember) {
             $refining = array_values(array_filter(
                 $documented,
-                static fn (TypeNode $member): bool => self::isDocblockName($member)
+                static fn (TypeNode $member): bool => (self::isDocblockName($member) && !self::isNull($declaredMember))
                     || TypeResolver::refines($member, $declaredMember)
             ));
             array_push($members, ...($refining === [] ? [$declaredMember] : $refining));
@@ -428,6 +430,14 @@ final class Reflector
         return $member instanceof IdentifierTypeNode
             && !str_starts_with($member->name, '\\')
             && !Utils::isNativeType($member->name);
+    }
+
+    /**
+     * Whether a member is the null of a nullable declaration.
+     */
+    private static function isNull(TypeNode $member): bool
+    {
+        return $member instanceof IdentifierTypeNode && strtolower($member->name) === 'null';
     }
 
     /**

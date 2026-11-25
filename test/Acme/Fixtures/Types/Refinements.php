@@ -50,6 +50,18 @@ class Refinements
     }
 
     /**
+     * The template stands in for the declared object, not for the null.
+     *
+     * @template T of object
+     *
+     * @param T $value described
+     */
+    public function nullableTemplateParam(?object $value): void
+    {
+        unset($value);
+    }
+
+    /**
      * @param class-string<Marker> $value described
      */
     public function classStringParam(string $value): void
