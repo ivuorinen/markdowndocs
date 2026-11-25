@@ -76,55 +76,11 @@ final class UseInspector
     {
         $usages = [];
         $tokens = token_get_all($content);
-        $depth = 0;
-        $classBody = [];        // brace depths that are class/interface/trait/enum bodies
-        $pendingClass = false;
+        // classBody: the brace depths that are class/interface/trait/enum bodies
+        $scope = ['depth' => 0, 'classBody' => [], 'pendingClass' => false];
 
         for ($i = 0, $len = count($tokens); $i < $len; $i++) {
-            $token = $tokens[$i];
-
-            // "{$var}" and "${var}" inside a string open a brace the tokenizer
-            // reports as an array token, but close it with a bare "}" that the
-            // arm below does count. Left uncounted, the depth sinks by one per
-            // interpolation and unset($classBody[$depth]) then clears the marker
-            // for a body still being read — after which a trait import in that
-            // body is taken for a file-level one and overwrites the real import.
-            if (is_array($token) && in_array($token[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true)) {
-                $depth++;
-                continue;
-            }
-            if ($token === '{') {
-                $depth++;
-                if ($pendingClass) {
-                    $classBody[$depth] = true;
-                    $pendingClass = false;
-                }
-                continue;
-            }
-            if ($token === '}') {
-                unset($classBody[$depth]);
-                $depth--;
-                continue;
-            }
-            if (!is_array($token)) {
-                continue;
-            }
-            if (in_array($token[0], [T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], true)) {
-                // "Foo::class" is also T_CLASS and opens no body.
-                $pendingClass = $this->previousMeaningfulText($tokens, $i) !== '::';
-                continue;
-            }
-            if ($token[0] !== T_USE) {
-                continue;
-            }
-            // A trait import inside a class body is not a file-level import. It
-            // used to be read as one and written to the map unqualified, which
-            // overwrote the real import of the same name — the file-level
-            // "use Vendor\Timestamps;" became "\Timestamps" as soon as the class
-            // body said "use Timestamps;".
-            //
-            // A closure's capture list is the one `use` preceded by ")".
-            if (isset($classBody[$depth]) || $this->previousMeaningfulText($tokens, $i) === ')') {
+            if ($this->trackScope($tokens, $i, $scope) || !$this->isFileImport($tokens, $i, $scope)) {
                 continue;
             }
             foreach ($this->readImport($tokens, $i) as $localName => $import) {
@@ -133,6 +89,78 @@ final class UseInspector
         }
 
         return $usages;
+    }
+
+    /**
+     * Follow the braces and the class-like declarations, so that a `use`
+     * can be told apart from a trait import in a class body. Returns whether
+     * the token was one of them.
+     *
+     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens token_get_all() output
+     * @param array{depth: int, classBody: array<int, true>, pendingClass: bool} $scope
+     */
+    private function trackScope(array $tokens, int $index, array &$scope): bool
+    {
+        $token = $tokens[$index];
+
+        // "{$var}" and "${var}" inside a string open a brace the tokenizer
+        // reports as an array token, but close it with a bare "}" that the
+        // arm below does count. Left uncounted, the depth sinks by one per
+        // interpolation and unset($classBody[$depth]) then clears the marker
+        // for a body still being read — after which a trait import in that
+        // body is taken for a file-level one and overwrites the real import.
+        if (is_array($token) && in_array($token[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true)) {
+            $scope['depth']++;
+
+            return true;
+        }
+        if ($token === '{') {
+            $scope['depth']++;
+            if ($scope['pendingClass']) {
+                $scope['classBody'][$scope['depth']] = true;
+                $scope['pendingClass'] = false;
+            }
+
+            return true;
+        }
+        if ($token === '}') {
+            unset($scope['classBody'][$scope['depth']]);
+            $scope['depth']--;
+
+            return true;
+        }
+        if (is_array($token) && in_array($token[0], [T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], true)) {
+            // "Foo::class" is also T_CLASS and opens no body.
+            $scope['pendingClass'] = $this->previousMeaningfulText($tokens, $index) !== '::';
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the token is a `use` that imports into the file.
+     *
+     * A trait import inside a class body is not a file-level import. It used
+     * to be read as one and written to the map unqualified, which overwrote
+     * the real import of the same name — the file-level
+     * "use Vendor\Timestamps;" became "\Timestamps" as soon as the class body
+     * said "use Timestamps;".
+     *
+     * A closure's capture list is the one `use` preceded by ")".
+     *
+     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens token_get_all() output
+     * @param array{depth: int, classBody: array<int, true>, pendingClass: bool} $scope
+     */
+    private function isFileImport(array $tokens, int $index, array $scope): bool
+    {
+        $token = $tokens[$index];
+
+        return is_array($token)
+            && $token[0] === T_USE
+            && !isset($scope['classBody'][$scope['depth']])
+            && $this->previousMeaningfulText($tokens, $index) !== ')';
     }
 
     /**
@@ -169,28 +197,8 @@ final class UseInspector
         for ($i = $index + 1, $len = count($tokens); $i < $len; $i++) {
             $token = $tokens[$i];
 
-            if (is_array($token)) {
-                if (in_array($token[0], self::SKIPPABLE, true)) {
-                    continue;
-                }
-                // `use function foo;` / `use const BAR;` import no class.
-                if (in_array($token[0], [T_FUNCTION, T_CONST], true)) {
-                    $state['notAClass'] = true;
-                    continue;
-                }
-                if ($token[0] === T_AS) {
-                    $state['readingAlias'] = true;
-                    continue;
-                }
-                if (in_array($token[0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED], true)) {
-                    $key = $state['readingAlias'] ? 'alias' : 'name';
-                    $state[$key] .= $token[1];
-                    continue;
-                }
-                if ($token[0] === T_NS_SEPARATOR) {
-                    $state['name'] .= '\\';
-                    continue;
-                }
+            if (is_array($token) && $this->readNameToken($token, $state)) {
+                continue;
             }
 
             if ($token === '{') {
@@ -216,6 +224,51 @@ final class UseInspector
         $this->flush($imports, $state);
 
         return $imports;
+    }
+
+    /**
+     * Take one array token of an import into the reader's state: a part of
+     * the imported name or its alias, `as`, or the `function`/`const` that
+     * makes it no class import. Returns whether the token was one of those.
+     *
+     * @param array{0: int, 1: string, 2: int} $token
+     * @param array{
+     *     prefix: string,
+     *     name: string,
+     *     alias: string,
+     *     readingAlias: bool,
+     *     notAClass: bool
+     * } $state
+     */
+    private function readNameToken(array $token, array &$state): bool
+    {
+        if (in_array($token[0], self::SKIPPABLE, true)) {
+            return true;
+        }
+        // `use function foo;` / `use const BAR;` import no class.
+        if (in_array($token[0], [T_FUNCTION, T_CONST], true)) {
+            $state['notAClass'] = true;
+
+            return true;
+        }
+        if ($token[0] === T_AS) {
+            $state['readingAlias'] = true;
+
+            return true;
+        }
+        if (in_array($token[0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED], true)) {
+            $key = $state['readingAlias'] ? 'alias' : 'name';
+            $state[$key] .= $token[1];
+
+            return true;
+        }
+        if ($token[0] === T_NS_SEPARATOR) {
+            $state['name'] .= '\\';
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
