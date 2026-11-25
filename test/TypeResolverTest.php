@@ -86,6 +86,17 @@ class TypeResolverTest extends TestCase
     }
 
     /**
+     * PHP matches an import alias without regard to case, so "bar" names the
+     * imported Bar. The import's own spelling and the rest of the name are
+     * kept as written.
+     */
+    public function testAnImportAliasMatchesWithoutRegardToCase(): void
+    {
+        $this->assertSame('\\Vendor\\Bar', self::resolve('bar', ['Bar' => '\\Vendor\\Bar']));
+        $this->assertSame('\\Vendor\\Sub\\Foo', self::resolve('SUB\\Foo', ['Sub' => '\\Vendor\\Sub']));
+    }
+
+    /**
      * "A&B" is two class names. Each resolves on its own, through the imports
      * as much as through the namespace.
      */

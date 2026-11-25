@@ -70,6 +70,14 @@ final class TypeResolver
     private readonly string $declaringClass;
 
     /**
+     * The file's imports keyed by lower-cased local name: PHP matches an
+     * import alias without regard to case.
+     *
+     * @var array<string, string>
+     */
+    private readonly array $imports;
+
+    /**
      * @param string $namespace the namespace relative names resolve against
      * @param array<string, string> $imports the file's use statements, local
      *                                       name => fully qualified class, as
@@ -80,10 +88,11 @@ final class TypeResolver
      */
     public function __construct(
         private readonly string $namespace,
-        private readonly array $imports = [],
+        array $imports = [],
         string $declaringClass = '',
         private readonly array $localNames = []
     ) {
+        $this->imports = array_change_key_case($imports);
         $this->declaringClass = $declaringClass === '' ? '' : Utils::sanitizeClassName($declaringClass);
     }
 
@@ -287,9 +296,10 @@ final class TypeResolver
         }
 
         $firstSegment = explode('\\', $name, 2)[0];
+        $import = $this->imports[strtolower($firstSegment)] ?? null;
 
-        return isset($this->imports[$firstSegment])
-            ? $this->imports[$firstSegment] . substr($name, strlen($firstSegment))
+        return $import !== null
+            ? $import . substr($name, strlen($firstSegment))
             : Utils::sanitizeClassName($this->namespace . '\\' . $name);
     }
 
