@@ -257,9 +257,10 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
                         rtrim('> **DEPRECATED** ' . $class->getDeprecationMessage()) . PHP_EOL . PHP_EOL;
                 } else {
                     $docs .= '### ' . $class->generateTitle() . PHP_EOL . PHP_EOL;
-                    if ($class->getDescription()) {
-                        $docs .= '> ' . $class->getDescription() . PHP_EOL . PHP_EOL;
-                    }
+                }
+                // The notice is added to the description, not put in its place.
+                if ($class->getDescription()) {
+                    $docs .= '> ' . $class->getDescription() . PHP_EOL . PHP_EOL;
                 }
 
                 if ($includeSee && $seeArray = $class->getSee()) {

@@ -617,6 +617,38 @@ class PHPDocsMDCommandTest extends TestCase
         );
     }
 
+    public function testDeprecatedClassTitleIsStruckThrough(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/Deprecation']);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString(
+            '### <del>Class: \\Acme\\Fixtures\\Deprecation\\Retired</del>' . PHP_EOL . PHP_EOL
+            . '> **DEPRECATED** use Replacement instead' . PHP_EOL,
+            $output
+        );
+        // A bare tag has no message to follow the label, so no trailing space.
+        $this->assertStringContainsString(
+            '### <del>Class: \\Acme\\Fixtures\\Deprecation\\RetiredWithoutMessage</del>' . PHP_EOL . PHP_EOL
+            . '> **DEPRECATED**' . PHP_EOL,
+            $output
+        );
+    }
+
+    /**
+     * Deprecation adds a notice; it does not take the description's place.
+     */
+    public function testDeprecatedClassKeepsItsDescription(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/Deprecation']);
+
+        $this->assertStringContainsString(
+            '> **DEPRECATED** use Replacement instead' . PHP_EOL . PHP_EOL
+            . '> Replaced by something better.' . PHP_EOL,
+            $this->tester->getDisplay()
+        );
+    }
+
     public function testNativeClassReturnTypesLinkToTheManual(): void
     {
         $this->tester->execute(['class' => 'Acme\\Fixtures\\Natives\\ReturnsNative']);

@@ -192,6 +192,28 @@ class MDTableGeneratorTest extends TestCase
     }
 
     /**
+     * Deprecation adds a notice; it does not take the description's place.
+     */
+    public function testDeprecatedFuncKeepsItsDescription(): void
+    {
+        $func = new FunctionEntity();
+        $func->setName('old');
+        $func->setReturnType('void');
+        $func->setDescription('Does the old thing.');
+        $func->isDeprecated(true);
+        $func->setDeprecationMessage('use new()');
+
+        $tbl = new MDTableGenerator();
+        $tbl->openTable();
+
+        self::assertSame(
+            '| public | <del><strong>old()</strong> : <em>void</em></del>'
+            . '<br /><em>DEPRECATED - use new()</em><br /><em>Does the old thing.</em> |',
+            $tbl->addFunc($func)
+        );
+    }
+
+    /**
      * A type is code, not markup. "list<Clause>" read as an HTML tag, so the
      * rendered cell said just "list". A description is the author's markdown
      * and keeps its markup.

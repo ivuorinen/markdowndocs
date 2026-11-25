@@ -140,7 +140,9 @@ class MDTableGenerator implements TableGenerator
             $str .= $message === ''
                 ? '<br /><em>DEPRECATED</em>'
                 : '<br /><em>DEPRECATED - ' . $message . '</em>';
-        } elseif ($func->getDescription()) {
+        }
+        // The notice is added to the description, not put in its place.
+        if ($func->getDescription()) {
             $str .= '<br /><em>' . self::escapeCell($func->getDescription()) . '</em>';
         }
         if ($includeSee && $func->getSee()) {
