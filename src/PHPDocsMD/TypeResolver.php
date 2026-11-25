@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace PHPDocsMD;
 
-use PHPStan\PhpDocParser\Ast\AbstractNodeVisitor;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprFloatNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprIntegerNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprStringNode;
-use PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode;
-use PHPStan\PhpDocParser\Ast\Node;
 use PHPStan\PhpDocParser\Ast\NodeTraverser;
-use PHPStan\PhpDocParser\Ast\PhpDoc\TemplateTagValueNode;
-use PHPStan\PhpDocParser\Ast\Type\ArrayShapeItemNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayShapeNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\CallableTypeNode;
@@ -20,9 +15,7 @@ use PHPStan\PhpDocParser\Ast\Type\ConstTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\GenericTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\NullableTypeNode;
-use PHPStan\PhpDocParser\Ast\Type\ObjectShapeItemNode;
 use PHPStan\PhpDocParser\Ast\Type\ObjectShapeNode;
-use PHPStan\PhpDocParser\Ast\Type\ThisTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
 use PHPStan\PhpDocParser\Lexer\Lexer;
@@ -116,72 +109,7 @@ final class TypeResolver
      */
     public function resolve(TypeNode $type): TypeNode
     {
-        $resolveName = $this->resolveName(...);
-        $visitor = new class ($resolveName, $this->localNames, $this->declaringClass) extends AbstractNodeVisitor {
-            /** Marks a name that is not a class in the place it is written. */
-            private const string AS_WRITTEN = 'phpdocsmd.asWritten';
-
-            /** @var list<list<string>> template names of the callables being visited */
-            private array $callableTemplates = [];
-
-            /**
-             * @param \Closure(string): string $resolveName
-             * @param list<string> $localNames
-             */
-            public function __construct(
-                private readonly \Closure $resolveName,
-                private readonly array $localNames,
-                private readonly string $declaringClass
-            ) {
-            }
-
-            #[\Override]
-            public function enterNode(Node $node): ?Node
-            {
-                if ($node instanceof ArrayShapeItemNode || $node instanceof ObjectShapeItemNode) {
-                    // A shape key is a key: "array{id: int}" has no class "id".
-                    $node->keyName?->setAttribute(self::AS_WRITTEN, true);
-                } elseif ($node instanceof GenericTypeNode && strtolower((string)$node->type) === 'int') {
-                    // "int<0, max>": the bounds are keywords of the range.
-                    foreach ($node->genericTypes as $bound) {
-                        $bound->setAttribute(self::AS_WRITTEN, true);
-                    }
-                } elseif ($node instanceof CallableTypeNode) {
-                    // "callable<T>(T): T" declares T for its own signature only.
-                    $this->callableTemplates[] = array_values(array_map(
-                        static fn (TemplateTagValueNode $template): string => $template->name,
-                        $node->templateTypes
-                    ));
-                } elseif ($node instanceof ThisTypeNode && $this->declaringClass !== '') {
-                    return new IdentifierTypeNode($this->declaringClass);
-                } elseif ($node instanceof IdentifierTypeNode && !$this->isLocal($node)) {
-                    return new IdentifierTypeNode(($this->resolveName)($node->name));
-                } elseif ($node instanceof ConstFetchNode && $node->className !== '') {
-                    // "Foo::BAR" names a class too.
-                    $node->className = ($this->resolveName)($node->className);
-                }
-
-                return null;
-            }
-
-            #[\Override]
-            public function leaveNode(Node $node): ?Node
-            {
-                if ($node instanceof CallableTypeNode) {
-                    array_pop($this->callableTemplates);
-                }
-
-                return null;
-            }
-
-            private function isLocal(IdentifierTypeNode $node): bool
-            {
-                return $node->getAttribute(self::AS_WRITTEN) === true
-                    || in_array($node->name, $this->localNames, true)
-                    || in_array($node->name, array_merge([], ...$this->callableTemplates), true);
-            }
-        };
-
+        $visitor = new ClassNameQualifier($this->resolveName(...), $this->localNames, $this->declaringClass);
         $resolved = (new NodeTraverser([$visitor]))->traverse([$type])[0];
         assert($resolved instanceof TypeNode);
 

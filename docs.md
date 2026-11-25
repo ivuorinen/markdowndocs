@@ -1,5 +1,6 @@
 ## Table of contents
 
+- [\PHPDocsMD\ClassNameQualifier](#class-phpdocsmd-classnamequalifier)
 - [\PHPDocsMD\DocInfo](#class-phpdocsmd-docinfo)
 - [\PHPDocsMD\DocInfoExtractor](#class-phpdocsmd-docinfoextractor)
 - [\PHPDocsMD\MDTableGenerator](#class-phpdocsmd-mdtablegenerator)
@@ -16,6 +17,23 @@
 - [\PHPDocsMD\Reflections\ClassEntityFactory](#class-phpdocsmd-reflections-classentityfactory)
 - [\PHPDocsMD\Reflections\FunctionFinder](#class-phpdocsmd-reflections-functionfinder)
 - [\PHPDocsMD\Reflections\Reflector](#class-phpdocsmd-reflections-reflector)
+
+<hr /><a id="class-phpdocsmd-classnamequalifier"></a>
+
+### Class: \PHPDocsMD\ClassNameQualifier
+
+> Qualifies every class name in a parsed type, wherever the name sits: a generic's parameters, a shape's values, a callable's signature. Names that are not classes where they are written — shape keys, the bounds of an int range, template and alias names — are left as written. TypeResolver::resolve() runs it over a type; it holds no state between types.
+
+| Visibility | Function |
+|:-----------|:---------|
+| public | <strong>__construct(</strong><em>[\Closure](https://php.net/manual/en/class.closure.php)(string): string</em> <strong>$resolveName</strong>, <em>list&lt;string&gt;</em> <strong>$localNames</strong>, <em>string</em> <strong>$declaringClass)</strong> : <em>void</em> |
+| public | <strong>enterNode(</strong><em>\PHPStan\PhpDocParser\Ast\Node</em> <strong>$node)</strong> : <em>\PHPStan\PhpDocParser\Ast\Node \| null</em> |
+| public | <strong>leaveNode(</strong><em>\PHPStan\PhpDocParser\Ast\Node</em> <strong>$node)</strong> : <em>\PHPStan\PhpDocParser\Ast\Node \| null</em> |
+
+
+*This class extends \PHPStan\PhpDocParser\Ast\AbstractNodeVisitor*
+
+*This class implements \PHPStan\PhpDocParser\Ast\NodeVisitor*
 
 <hr /><a id="class-phpdocsmd-docinfo"></a>
 
