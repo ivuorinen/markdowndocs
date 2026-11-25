@@ -240,8 +240,8 @@
 | public | <strong>setDescription(</strong><em>string</em> <strong>$description)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
 | public | <strong>setExample(</strong><em>string</em> <strong>$example)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
 | public | <strong>setName(</strong><em>string</em> <strong>$name)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
-| public | <strong>setProblems(</strong><em>list&lt;string&gt;</em> <strong>$problems)</strong> : <em>static</em> |
-| public | <strong>setSee(</strong><em>array&lt;string&gt;</em> <strong>$see)</strong> : <em>static</em><br /><em>Returns static so subclasses inherit this without having to override it only to keep their own return type — ClassEntity and FunctionEntity each carried a verbatim copy of this method and a shadowing $see property.</em> |
+| public | <strong>setProblems(</strong><em>list&lt;string&gt;</em> <strong>$problems)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
+| public | <strong>setSee(</strong><em>array&lt;string&gt;</em> <strong>$see)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em><br /><em>Returns static so subclasses inherit this without having to override it only to keep their own return type — ClassEntity and FunctionEntity each carried a verbatim copy of this method and a shadowing $see property.</em> |
 
 
 <hr /><a id="class-phpdocsmd-entities-functionentity"></a>

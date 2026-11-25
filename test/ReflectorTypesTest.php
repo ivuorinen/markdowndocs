@@ -76,6 +76,23 @@ class ReflectorTypesTest extends ReflectorTestCase
     }
 
     /**
+     * A declared "static" names the declaring class, as "@return static" does;
+     * left as the keyword, a documented "static" no longer matched it.
+     *
+     * @throws \ReflectionException
+     */
+    public function testDeclaredStaticIsTheDeclaringClass(): void
+    {
+        foreach (['fluent', 'documentedFluent'] as $method) {
+            $this->assertSame(
+                '\\Acme\\Fixtures\\Types\\SelfTyped',
+                $this->functionOf('Acme\\Fixtures\\Types\\SelfTyped', $method)->getReturnType(),
+                $method
+            );
+        }
+    }
+
+    /**
      * @throws \ReflectionException
      */
     public function testNumericDefaultsKeepTheirDeclaredType(): void

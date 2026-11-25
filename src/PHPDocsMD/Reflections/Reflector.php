@@ -567,9 +567,10 @@ final class Reflector
         /** @var \ReflectionNamedType $type */
         $name = $type->getName();
 
-        // PHP 8.5 resolves a declared "self" itself; earlier versions report the
-        // keyword, which names the declaring class.
-        if ($name === 'self' && $declaringClass !== '') {
+        // "self" and "static" name the declaring class here, as they do in a
+        // docblock. PHP 8.5 resolves a declared "self" itself and earlier
+        // versions report the keyword; every version reports "static".
+        if (in_array($name, ['self', 'static'], true) && $declaringClass !== '') {
             $node = new IdentifierTypeNode(Utils::sanitizeClassName($declaringClass));
         } else {
             $node = new IdentifierTypeNode(Utils::isNativeType($name) ? $name : Utils::sanitizeClassName($name));

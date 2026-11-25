@@ -10,4 +10,17 @@ class SelfTyped
     {
         return $other;
     }
+
+    public function fluent(): static
+    {
+        return $this;
+    }
+
+    /**
+     * @return static
+     */
+    public function documentedFluent(): static
+    {
+        return $this;
+    }
 }
