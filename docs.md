@@ -85,7 +85,7 @@
 
 ### Interface: \PHPDocsMD\TableGenerator
 
-> Any class that can create a markdown-formatted table describing class functions referred to via FunctionEntity objects should implement this interface.
+> Any class that can create a markdown-formatted table describing class functions referred to via FunctionEntity objects should implement this interface. Markup convention: once every table is written, the command links each fully qualified class name (\Acme\Foo) found inside an `<em>…</em>` element — to the class's section, or to the PHP manual for a class PHP ships. An `<em>` that directly follows `<br />` is treated as prose and left untouched, so a class name in a description's code span stays as the author wrote it. Wrap types in `<em>`, and introduce descriptions and other prose with `<br />`.
 
 | Visibility | Function |
 |:-----------|:---------|
@@ -93,7 +93,7 @@
 | public | <strong>appendExamplesToEndOfTable(</strong><em>bool</em> <strong>$toggle)</strong> : <em>void</em><br /><em>All example comments found while generating the table will be appended to the end of the table. Set $toggle to false to prevent this behaviour</em> |
 | public | <strong>doDeclareAbstraction(</strong><em>bool</em> <strong>$toggle)</strong> : <em>void</em><br /><em>Toggle whether methods being abstract (or part of an interface) should be declared as abstract in the table</em> |
 | public static | <strong>formatExampleComment(</strong><em>string</em> <strong>$example)</strong> : <em>string</em><br /><em>Create a markdown-formatted code view out of an example comment.</em> |
-| public | <strong>getTable()</strong> : <em>string</em> |
+| public | <strong>getTable()</strong> : <em>string</em><br /><em>The finished markdown for the rows added since openTable(), with the collected examples appended when appendExamplesToEndOfTable() allows. The command writes it below the class heading and links class names in it per the markup convention above.</em> |
 | public | <strong>openTable()</strong> : <em>void</em><br /><em>Begin generating a new markdown-formatted table</em> |
 
 

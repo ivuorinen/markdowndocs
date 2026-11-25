@@ -166,6 +166,26 @@ class PHPDocsMDCommandTest extends TestCase
     }
 
     /**
+     * The markup convention TableGenerator documents holds for any generator:
+     * class names in an <em> are linked, and an <em> after "<br />" is prose
+     * and is left as the author wrote it.
+     */
+    public function testAThirdPartyGeneratorGetsTheDocumentedLinking(): void
+    {
+        $this->tester->execute([
+            'class'            => __DIR__ . '/Acme/Fixtures/Links',
+            '--tableGenerator' => MarkupTableGenerator::class,
+        ]);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString(
+            '- listOfBar : <em>list<[\\Acme\\Fixtures\\Links\\Bar](#interface-acme-fixtures-links-bar)></em>',
+            $output
+        );
+        $this->assertStringContainsString('<br /><em>Returns `\\Acme\\Fixtures\\Links\\Bar` objects.</em>', $output);
+    }
+
+    /**
      * A class that is not loaded is neither documented here nor PHP's own, and
      * it is not loaded to find out: loading may fail, or run the class's file.
      */
