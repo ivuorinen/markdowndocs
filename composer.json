@@ -20,6 +20,7 @@
     "homepage": "https://github.com/ivuorinen/PHP-Markdown-Documentation-Generator",
     "require": {
         "php": "^8.3",
+        "ext-tokenizer": "*",
         "symfony/console": "^6 || ^7 || ^8"
     },
     "require-dev": {
