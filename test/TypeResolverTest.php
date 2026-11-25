@@ -86,6 +86,20 @@ class TypeResolverTest extends TestCase
     }
 
     /**
+     * "namespace\Foo" is PHP's name relative to the current namespace: the
+     * keyword stands for the namespace, in any case, and is never an import
+     * or a namespace segment of its own.
+     */
+    public function testANamespaceRelativeNameResolvesAgainstTheNamespace(): void
+    {
+        $this->assertSame('\\Acme\\Foo', self::resolve('namespace\\Foo'));
+        $this->assertSame('\\Acme\\Sub\\Foo', self::resolve('Namespace\\Sub\\Foo', ['Sub' => '\\Vendor\\Sub']));
+
+        $global = new TypeResolver('');
+        $this->assertSame('\\Foo', TypeResolver::print($global->resolve(TypeResolver::parse('namespace\\Foo'))));
+    }
+
+    /**
      * PHP matches an import alias without regard to case, so "bar" names the
      * imported Bar. The import's own spelling and the rest of the name are
      * kept as written.

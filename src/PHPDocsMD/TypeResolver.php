@@ -295,6 +295,12 @@ final class TypeResolver
             return $name;
         }
 
+        // "namespace\Foo" names Foo in the current namespace; the keyword is
+        // neither an import alias nor a namespace segment.
+        if (strncasecmp($name, 'namespace\\', 10) === 0) {
+            return Utils::sanitizeClassName($this->namespace . substr($name, 9));
+        }
+
         $firstSegment = explode('\\', $name, 2)[0];
         $import = $this->imports[strtolower($firstSegment)] ?? null;
 
