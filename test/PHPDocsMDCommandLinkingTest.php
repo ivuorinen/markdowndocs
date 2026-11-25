@@ -295,4 +295,24 @@ class PHPDocsMDCommandLinkingTest extends CommandTestCase
             $this->tester->getDisplay()
         );
     }
+
+    /**
+     * An example is code as its author wrote it. Markup in it that matches a
+     * type cell or an inheritance line is still part of the code, so it gets
+     * no links, at class or method level.
+     */
+    public function testAnExampleIsNotLinked(): void
+    {
+        $this->tester->execute(['class' => 'Acme\\Fixtures\\Links\\ExampleMarkup,Acme\\Fixtures\\Links\\Bar']);
+
+        $output = $this->tester->getDisplay();
+        $this->assertStringContainsString("echo '<em>\\Acme\\Fixtures\\Links\\Bar</em>';", $output);
+        $this->assertStringContainsString('*This class extends \\Acme\\Fixtures\\Links\\Bar*', $output);
+        $this->assertStringContainsString("echo '<em>\\DateTime</em>';", $output);
+        // Outside the examples, linking still runs.
+        $this->assertStringContainsString(
+            ': <em>[\\Acme\\Fixtures\\Links\\Bar](#interface-acme-fixtures-links-bar)</em>',
+            $output
+        );
+    }
 }

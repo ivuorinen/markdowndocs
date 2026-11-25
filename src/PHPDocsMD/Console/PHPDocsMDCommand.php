@@ -407,18 +407,45 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
      * later in the run still links, and a parent left out — by @ignore or
      * --no-internal — is not linked to a section that does not exist.
      *
+     * A fenced block is left as it is. It holds an @example, which is code
+     * as its author wrote it, and code that writes HTML can contain an <em>
+     * span or a line shaped like an inheritance line.
+     *
      * @param array<string, string> $anchors section anchors by lower-cased class name
      */
     private static function linkClassNames(string $document, array $anchors): string
     {
+        // The pieces between the fenced blocks, each with its offset; the
+        // blocks themselves are the gaps, copied from the document unchanged.
+        // On a PCRE error there are no pieces, and the document is printed
+        // without links rather than not at all.
+        $pieces = preg_split('/^(`{3,}|~{3,})[^\n]*\n.*?^\1[ \t]*$/ms', $document, -1, PREG_SPLIT_OFFSET_CAPTURE);
+        $linked = '';
+        $position = 0;
+        foreach ($pieces === false ? [] : $pieces as [$text, $offset]) {
+            $linked .= substr($document, $position, $offset - $position) . self::linkSpans($text, $anchors);
+            $position = $offset + strlen($text);
+        }
+
+        return $linked . substr($document, $position);
+    }
+
+    /**
+     * Link the class names in the type cells and inheritance lines of a
+     * piece of the document that holds no fenced block.
+     *
+     * @param array<string, string> $anchors section anchors by lower-cased class name
+     */
+    private static function linkSpans(string $text, array $anchors): string
+    {
         // On a PCRE error — a backtrack limit on a large document is the
-        // realistic one — preg_replace_callback() returns null; the document
-        // is then printed without links rather than not at all.
+        // realistic one — preg_replace_callback() returns null; the text is
+        // then printed without links rather than not at all.
         return preg_replace_callback(
             ['/((?<!<br \/>)<em>)(.*?)(<\/em>)/', '/^(\*This class (?:extends|implements) )(.*)(\*)$/m'],
             static fn (array $span): string => $span[1] . self::linkNames($span[2], $anchors) . $span[3],
-            $document
-        ) ?? $document;
+            $text
+        ) ?? $text;
     }
 
     /**
