@@ -18,14 +18,7 @@ class PHPDocsMDCommandTest extends TestCase
     protected function setUp(): void
     {
         $application = new Application();
-        $command = new PHPDocsMDCommand();
-
-        // Application::add() was removed in Symfony 8; addCommand() replaced it in 7.4.
-        if (method_exists($application, 'addCommand')) {
-            $application->addCommand($command);
-        } else {
-            $application->add($command);
-        }
+        $application->addCommands([new PHPDocsMDCommand()]);
 
         $this->tester = new CommandTester($application->find('generate'));
         SpyTableGenerator::$seenIncludeSee = [];

@@ -41,10 +41,9 @@ class CLITest extends TestCase
     }
 
     /**
-     * run() registers the generate command through whichever Application API the
-     * installed Symfony provides — add() up to 7.x, addCommand() from 7.4 on.
-     * Both branches are exercised across the CI matrix: the prefer-lowest leg
-     * pins symfony/console 5.4, the others run 7.x or 8.x.
+     * run() registers the generate command through addCommands(), which every
+     * supported symfony/console version provides. The CI matrix runs it against
+     * 6.4 (prefer-lowest), 7.4 (locked) and 8.x (prefer-highest).
      */
     public function testRunRegistersTheGenerateCommand(): void
     {

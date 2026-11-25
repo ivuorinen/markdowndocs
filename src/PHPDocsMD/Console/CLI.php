@@ -47,17 +47,11 @@ class CLI extends Application
     #[\Override]
     public function run(?InputInterface $input = null, ?OutputInterface $output = null): int
     {
-        $command = new PHPDocsMDCommand();
-
-        // Application::add() was removed in Symfony 8; addCommand() replaced it in
-        // 7.4. Dispatched through a variable method name deliberately: written as
-        // two literal calls, whichever one is absent from the installed version is
-        // a hard reference psalm resolves and reports as UndefinedMethod. Silencing
-        // that with @psalm-suppress is not an option either — findUnusedPsalmSuppress
-        // is on, so the suppression itself then fails every leg where the method
-        // does exist.
-        $register = method_exists($this, 'addCommand') ? 'addCommand' : 'add';
-        $this->$register($command);
+        // addCommands() is the one registration method every supported Symfony
+        // version has: add() is deprecated in 7.4 and removed in 8, and
+        // addCommand() does not exist before 7.4. It delegates to whichever of
+        // the two the installed version provides.
+        $this->addCommands([new PHPDocsMDCommand()]);
 
         return parent::run($input, $output);
     }

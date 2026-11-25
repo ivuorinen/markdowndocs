@@ -38,11 +38,10 @@ jobs:
           # install symfony/console 7 regardless of PHP version. These two legs
           # cover the ends of the declared range instead:
           #
-          #   highest — symfony/console 8 (needs PHP >= 8.4.1), exercising the
-          #             Application::addCommand path the lock never reaches.
+          #   highest — symfony/console 8 (needs PHP >= 8.4.1), the newest
+          #             major the constraint allows.
           #   lowest  — symfony/console 6, the oldest the constraint allows,
-          #             run on the oldest PHP we support. This is the leg that
-          #             covers Application::add(), removed in console 8.
+          #             run on the oldest PHP we support.
           - operating-system: 'ubuntu-latest'
             php-versions: '8.5'
             dependencies: 'highest'
