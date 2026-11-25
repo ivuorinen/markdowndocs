@@ -106,6 +106,35 @@ final class MDTableGenerator implements TableGenerator
     {
         $this->fullClassName = $func->getClass();
 
+        $str = $this->signature($func);
+        if ($func->isDeprecated()) {
+            $str = '<del>' . $str . '</del>';
+        }
+        $str .= self::notes($func, $includeSee);
+
+        $str = str_replace(
+            ['</strong><strong>', '</strong></strong> '],
+            ['', '</strong>'],
+            trim($str)
+        );
+
+        if ($func->getExample()) {
+            $this->examples[$func->getName()] = $func->getExample();
+        }
+
+        $firstCol = $func->getVisibility() . ($func->isStatic() ? ' static' : '');
+        $markDown = '| ' . $firstCol . ' | ' . $str . ' |';
+
+        $this->add($markDown);
+
+        return $markDown;
+    }
+
+    /**
+     * The function's name, parameters and return type, as the row's first line.
+     */
+    private function signature(FunctionEntity $func): string
+    {
         $str = '<strong>';
 
         if ($this->declareAbstraction && $func->isAbstract()) {
@@ -131,11 +160,18 @@ final class MDTableGenerator implements TableGenerator
             $str .= '</strong>' . implode(', ', $params) . '<strong>';
         }
 
-        $str .= ')</strong> : <em>' . self::escapeType($func->getReturnType()) . '</em>';
+        return $str . ')</strong> : <em>' . self::escapeType($func->getReturnType()) . '</em>';
+    }
 
+    /**
+     * The lines under the signature: the deprecation notice, the description
+     * and, when asked for, the references.
+     */
+    private static function notes(FunctionEntity $func, bool $includeSee): string
+    {
+        $str = '';
         if ($func->isDeprecated()) {
             $message = self::escapeCell($func->getDeprecationMessage());
-            $str = '<del>' . $str . '</del>';
             // A bare "@deprecated" carries no message; " - " with nothing after
             // it reads as a truncated sentence.
             $str .= $message === ''
@@ -151,22 +187,7 @@ final class MDTableGenerator implements TableGenerator
                 self::escapeCell(implode(', ', $func->getSee())) . '</em>';
         }
 
-        $str = str_replace(
-            ['</strong><strong>', '</strong></strong> '],
-            ['', '</strong>'],
-            trim($str)
-        );
-
-        if ($func->getExample()) {
-            $this->examples[$func->getName()] = $func->getExample();
-        }
-
-        $firstCol = $func->getVisibility() . ($func->isStatic() ? ' static' : '');
-        $markDown = '| ' . $firstCol . ' | ' . $str . ' |';
-
-        $this->add($markDown);
-
-        return $markDown;
+        return $str;
     }
 
     /**
