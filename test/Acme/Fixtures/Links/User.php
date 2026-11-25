@@ -28,5 +28,6 @@ class User
      */
     public function makeEither($either)
     {
+        unset($either);
     }
 }

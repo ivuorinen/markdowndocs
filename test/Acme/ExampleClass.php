@@ -2,6 +2,8 @@
 
 namespace Acme;
 
+use PHPDocsMD\Console\CLI;
+
 /**
  * Interface ExampleInterface
  *
@@ -51,6 +53,7 @@ abstract class ExampleClass implements \Reflector
      */
     public function funcA($arg, array $arr, $bool = 10)
     {
+        unset($arg, $arr, $bool);
     }
 
     /**
@@ -70,14 +73,19 @@ abstract class ExampleClass implements \Reflector
      */
     public function funcB($arg, array $arr, $bool = 10)
     {
+        unset($arg, $arr, $bool);
     }
 
     public function funcD($arg, $arr = [], ?ExampleInterface $depr = null, ?\stdClass $class = null)
     {
+        unset($arg, $arr, $depr, $class);
     }
 
     public function getFunc()
     {
+        // privFunc() needs a caller; it exists to pin that private methods are
+        // left out of the documentation.
+        $this->privFunc();
     }
 
     public function hasFunc()
@@ -105,6 +113,7 @@ abstract class ExampleClass implements \Reflector
      */
     protected function funcC($arg, array $arr, $bool = 10)
     {
+        unset($arg, $arr, $bool);
     }
 
     private function privFunc()
@@ -165,8 +174,6 @@ class ClassImplementingInterface extends SomeClass implements ExampleInterface
     }
 }
 
-use PHPDocsMD\Console\CLI;
-
 class ClassWithStaticFunc
 {
 
@@ -188,6 +195,7 @@ class ClassWithDocumentedParams
      */
     public function documented($count, $label, $offset)
     {
+        unset($count, $label, $offset);
     }
 }
 
@@ -195,6 +203,7 @@ class ClassWithFalsyDefaults
 {
     public function falsy($int = 0, $float = 0.0, $bool = false, $none = null)
     {
+        unset($int, $float, $bool, $none);
     }
 
     /**
@@ -205,6 +214,7 @@ class ClassWithFalsyDefaults
      */
     public function falsyWithDocumentedType($documented = 0)
     {
+        unset($documented);
     }
 }
 

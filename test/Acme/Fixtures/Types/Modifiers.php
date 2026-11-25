@@ -12,6 +12,7 @@ class Modifiers
      */
     public function variadic(string $first, string ...$rest): void
     {
+        unset($first, $rest);
     }
 
     /**
@@ -19,6 +20,7 @@ class Modifiers
      */
     public function byRef(array &$out): void
     {
+        $out = [];
     }
 
     /**
@@ -27,6 +29,7 @@ class Modifiers
      */
     public function documentedUnions(?Marker $a, int|string $b): void
     {
+        unset($a, $b);
     }
 
     /**

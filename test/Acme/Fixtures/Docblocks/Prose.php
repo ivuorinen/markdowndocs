@@ -20,6 +20,7 @@ class Prose
      */
     public function wrapped(string $name, int $n): void
     {
+        unset($name, $n);
     }
 
     /**
