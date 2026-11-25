@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Entities;
 
-use PHPDocsMD\Utils;
-
 /**
  * Object describing a function parameter
  *
@@ -49,19 +47,5 @@ class ParamEntity extends CodeEntity
         $this->type = $type;
 
         return $this;
-    }
-
-    /**
-     * @throws \ReflectionException
-     */
-    public function getNativeClassType(): ?string
-    {
-        foreach (preg_split('/\s*\|\s*/', $this->type) as $typeDeclaration) {
-            if (Utils::isNativeClassReference($typeDeclaration)) {
-                return $typeDeclaration;
-            }
-        }
-
-        return null;
     }
 }

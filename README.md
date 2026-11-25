@@ -27,14 +27,20 @@ class MyObject {
    /**
     * This is a function description
     * @param string $str
-    * @param array $arr
-    * @return Acme\OtherObject
+    * @param array<string, int> $arr
+    * @return OtherObject
     */
    public function someFunc($str, $arr=[]) {}
 }
 ```
 
 Then, running `phpdoc-md generate src > api.md` will write your API documentation to the file api.md.
+
+Types in `@param` and `@return` may use the PHPStan and Psalm syntax — generics, array and object shapes,
+callable signatures, literals, conditional types — and class names in them resolve through the file's `use`
+statements the way PHP resolves them in code. `@phpstan-param` and `@psalm-param` (and the matching `-return`
+tags) take precedence over the plain tag, as they do in those tools. Docblocks are read with
+[phpstan/phpdoc-parser](https://github.com/phpstan/phpdoc-parser).
 
 [Here you can see a rendered example](https://github.com/ivuorinen/markdowndocs/blob/main/docs.md)
 

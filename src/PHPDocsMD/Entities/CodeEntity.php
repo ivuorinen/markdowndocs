@@ -18,6 +18,8 @@ class CodeEntity
     private string $deprecationMessage = '';
     private string $example = '';
     private array $see = [];
+    /** @var list<string> */
+    private array $problems = [];
 
     public function isDeprecated(?bool $toggle = null): bool
     {
@@ -94,6 +96,28 @@ class CodeEntity
     public function setSee(array $see): static
     {
         $this->see = array_values($see);
+
+        return $this;
+    }
+
+    /**
+     * What could not be read from the docblock, one message per tag — the
+     * documentation it carried is missing from the output, so the command
+     * reports each one rather than let it vanish.
+     *
+     * @return list<string>
+     */
+    public function getProblems(): array
+    {
+        return $this->problems;
+    }
+
+    /**
+     * @param list<string> $problems
+     */
+    public function setProblems(array $problems): static
+    {
+        $this->problems = $problems;
 
         return $this;
     }

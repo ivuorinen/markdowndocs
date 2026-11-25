@@ -11,6 +11,7 @@ use PHPDocsMD\MDTableGenerator;
 use PHPDocsMD\Reflections\Reflector;
 use PHPDocsMD\TableGenerator;
 use PHPDocsMD\Utils;
+use ReflectionClass;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -173,7 +174,10 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
         $tableOfContent = [];
         $body = [];
-        $classLinks = [];
+        // Section anchors of the documented classes, by lower-cased name: PHP
+        // class names are case-insensitive, and a docblock may not match the
+        // declaration's case.
+        $anchors = [];
         $documented = [];
 
         foreach ($classCollection as $classes) {
@@ -200,7 +204,11 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
                     $class->generateAnchor()
                 );
 
-                $classLinks[$class->getName()] = '#' . $class->generateAnchor();
+                // A single class is written without a section anchor, and a link
+                // to one would lead nowhere.
+                if (!$requestingOneClass) {
+                    $anchors[strtolower($class->getName())] = '#' . $class->generateAnchor();
+                }
 
                 // generate function table
                 // openTable() resets declareAbstraction, so both toggles are set
@@ -208,36 +216,21 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
                 $tableGenerator->openTable();
                 $tableGenerator->appendExamplesToEndOfTable($appendExamples);
                 $tableGenerator->doDeclareAbstraction(!$class->isInterface());
+                $this->reportProblems($class->getName(), $class->getProblems());
                 foreach ($class->getFunctions() as $func) {
                     if ($noInternal && $func->isInternal()) {
                         continue;
                     }
-                    if ($func->isReturningNativeClass()) {
-                        $link = sprintf(
-                            'https://php.net/manual/en/class.%s.php',
-                            strtolower(
-                                str_replace(['[]', '\\'], '', $func->getReturnType())
-                            )
-                        );
-                        $classLinks[$func->getReturnType()] = $link;
-                    }
-                    foreach ($func->getParams() as $param) {
-                        if ($param->getNativeClassType()) {
-                            $link = sprintf(
-                                'https://php.net/manual/en/class.%s.php',
-                                strtolower(str_replace(['[]', '\\',], '', $param->getNativeClassType()))
-                            );
-                            $classLinks[$param->getNativeClassType()] = $link;
-                        }
-                    }
+                    // Named by the class whose docblock it is: an inherited
+                    // method's problems are in its parent's docblock.
+                    $this->reportProblems($func->getClass() . '::' . $func->getName() . '()', $func->getProblems());
                     $tableGenerator->addFunc($func, $includeSee);
                 }
 
                 $docs = (
                     $requestingOneClass
                     ? ''
-                    : '<hr /><a id="' . trim($classLinks[$class->getName()], '#') . '"></a>' .
-                    PHP_EOL . PHP_EOL
+                    : '<hr /><a id="' . $class->generateAnchor() . '"></a>' . PHP_EOL . PHP_EOL
                 );
 
                 if ($class->isDeprecated()) {
@@ -276,35 +269,14 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
                 $docs .= $tableGenerator->getTable() . PHP_EOL . PHP_EOL;
 
+                // Written as plain names: linkClassNames() links them once every
+                // section is known, and only to sections the document has.
                 if ($class->getExtends()) {
-                    $link = $class->getExtends();
-                    if ($anchor = $this->getAnchorFromClassCollection(
-                        $classCollection,
-                        $class->getExtends()
-                    )) {
-                        $link = sprintf('[%s](#%s) ', $link, $anchor);
-                    }
-
-                    $docs .= PHP_EOL . '*This class extends ' . trim($link) . '*' . PHP_EOL;
+                    $docs .= PHP_EOL . '*This class extends ' . $class->getExtends() . '*' . PHP_EOL;
                 }
 
                 if ($interfaces = $class->getInterfaces()) {
-                    $interfaceNames = [];
-                    foreach ($interfaces as $interface) {
-                        $anchor = $this->getAnchorFromClassCollection(
-                            $classCollection,
-                            $interface
-                        );
-                        $interfaceNames[] = $anchor
-                            ? sprintf('[%s](#%s) ', $interface, $anchor)
-                            : $interface;
-                    }
-                    $docs .= PHP_EOL .
-                        sprintf(
-                            '*This class implements %s*',
-                            trim(implode(', ', $interfaceNames))
-                        ) .
-                        PHP_EOL;
+                    $docs .= PHP_EOL . '*This class implements ' . implode(', ', $interfaces) . '*' . PHP_EOL;
                 }
 
                 $body[] = $docs;
@@ -323,34 +295,91 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
             $output->writeln(implode(PHP_EOL, $tableOfContent), OutputInterface::OUTPUT_RAW);
         }
 
-        // Convert references to classes into links. Longest name first, and the
-        // lookahead refuses a match that runs on into a longer identifier, so
-        // \Acme\Bar cannot eat the prefix of \Acme\BarBaz.
-        //
-        // The accepted leading context is "<em>", a "/" (a URL path), or the
-        // escaped pipe MDTableGenerator::escapeCell() writes between union
-        // members. Only the first member of a union sits directly after "<em>",
-        // so without that third alternative every later member stayed plain text.
-        uksort($classLinks, static fn (string $a, string $b) => strlen($b) <=> strlen($a));
-        $unionSeparator = preg_quote('\| ', '/');
-        $docString = implode(PHP_EOL, $body);
-        foreach ($classLinks as $className => $url) {
-            $link = sprintf('[%s](%s) ', $className, $url);
-            // Keep the last good document if a replacement fails. preg_replace()
-            // returns null on a PCRE error — a backtrack limit on a large document
-            // is the realistic one — and null then feeds the next iteration as the
-            // subject, which returns null again. One failure would otherwise walk
-            // the whole document to null and print an empty file, successfully.
-            $docString = preg_replace(
-                '/(<em>|' . $unionSeparator . '|\/)' . preg_quote($className, '/') . '(?![\w\\\\])/',
-                '$1' . str_replace(['\\', '$'], ['\\\\', '\\$'], $link),
-                $docString
-            ) ?? $docString;
-        }
-
-        $output->writeln(PHP_EOL . $docString, OutputInterface::OUTPUT_RAW);
+        $output->writeln(
+            PHP_EOL . self::linkClassNames(implode(PHP_EOL, $body), $anchors),
+            OutputInterface::OUTPUT_RAW
+        );
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Turn every class name in the document's type cells and inheritance lines
+     * into a link: to its section when the document has one, to the PHP manual
+     * when PHP ships the class. A name links wherever it sits in a type — a
+     * union member, a generic's parameter, a shape's value, a callable's
+     * signature.
+     *
+     * A type cell is an <em> the table generator writes after "(", ", " or
+     * " : ". The other <em>s — a description, a deprecation notice, the @see
+     * line — follow a line break; they are the author's prose, where a link
+     * inside a code span would show as the link syntax itself. An inheritance
+     * line is the "*This class extends/implements ...*" line under a table.
+     *
+     * Linking runs after every section is written, so a parent documented
+     * later in the run still links, and a parent left out — by @ignore or
+     * --no-internal — is not linked to a section that does not exist.
+     *
+     * @param array<string, string> $anchors section anchors by lower-cased class name
+     */
+    private static function linkClassNames(string $document, array $anchors): string
+    {
+        // On a PCRE error — a backtrack limit on a large document is the
+        // realistic one — preg_replace_callback() returns null; the document
+        // is then printed without links rather than not at all.
+        return preg_replace_callback(
+            ['/((?<!<br \/>)<em>)(.*?)(<\/em>)/', '/^(\*This class (?:extends|implements) )(.*)(\*)$/m'],
+            static fn (array $span): string => $span[1] . self::linkNames($span[2], $anchors) . $span[3],
+            $document
+        ) ?? $document;
+    }
+
+    /**
+     * Link each class name in a piece of rendered type text.
+     *
+     * Rendered types write every class name in full, so a name is a backslash
+     * and the identifier segments after it, taken whole: \Acme\Bar cannot match
+     * the start of \Acme\BarBaz, nor the end of \Other\Acme\Bar. A string
+     * literal escapes its backslashes, so a class name inside one never reads
+     * as a name.
+     *
+     * @param array<string, string> $anchors section anchors by lower-cased class name
+     */
+    private static function linkNames(string $text, array $anchors): string
+    {
+        return preg_replace_callback(
+            '/(?<![\w\\\\])(?:\\\\[A-Za-z_\x80-\xff][\w\x80-\xff]*)+/',
+            static function (array $name) use ($anchors): string {
+                $url = $anchors[strtolower($name[0])] ?? self::manualPage($name[0]);
+
+                return $url === null ? $name[0] : sprintf('[%s](%s)', $name[0], $url);
+            },
+            $text
+        ) ?? $text;
+    }
+
+    /**
+     * The PHP manual page of a class, interface or enum PHP ships, or null
+     * for anything else. The page name is the lower-cased name with each
+     * namespace separator a hyphen — Random\Randomizer is
+     * "class.random-randomizer" — and enums are filed as "enum.", not "class.".
+     */
+    private static function manualPage(string $className): ?string
+    {
+        if (!class_exists($className, false) && !interface_exists($className, false)) {
+            return null;
+        }
+
+        $class = new ReflectionClass($className);
+        if (!$class->isInternal()) {
+            return null;
+        }
+
+        return sprintf(
+            'https://php.net/manual/en/%s.%s.php',
+            $class->isEnum() ? 'enum' : 'class',
+            strtolower(str_replace('\\', '-', $class->getName()))
+        );
     }
 
     private function findClassesInDir(string $dir, array $collection = [], array $ignores = []): array
@@ -415,6 +444,20 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
             );
 
             return false;
+        }
+    }
+
+    /**
+     * Report on stderr each docblock tag that could not be read, naming where
+     * it is. The documentation such a tag carried is missing from the output,
+     * and this message is the only sign of it.
+     *
+     * @param list<string> $problems
+     */
+    private function reportProblems(string $where, array $problems): void
+    {
+        foreach ($problems as $problem) {
+            $this->errorOutput?->writeln(sprintf('phpdoc-md: %s: %s', $where, $problem), OutputInterface::OUTPUT_RAW);
         }
     }
 
@@ -549,18 +592,5 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         }
 
         return $this->memory[$name];
-    }
-
-    private function getAnchorFromClassCollection(array $coll, string $find): ?string
-    {
-        foreach ($coll as $classes) {
-            foreach ($classes as $className) {
-                if ($className === $find) {
-                    return $this->getClassEntity($className)->generateAnchor();
-                }
-            }
-        }
-
-        return null;
     }
 }

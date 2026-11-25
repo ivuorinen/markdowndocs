@@ -20,7 +20,6 @@ class FunctionEntity extends CodeEntity
     private bool $abstract = false;
     private bool $isStatic = false;
     private string $class = '';
-    private bool $isReturningNativeClass = false;
 
     public function isStatic(?bool $toggle = null): bool
     {
@@ -53,19 +52,6 @@ class FunctionEntity extends CodeEntity
     public function setAbstract(bool $abstract): FunctionEntity
     {
         $this->abstract = $abstract;
-        return $this;
-    }
-
-    public function isReturningNativeClass(?bool $toggle = null): bool
-    {
-        return $toggle === null
-            ? $this->isReturningNativeClass
-            : ($this->isReturningNativeClass = $toggle);
-    }
-
-    public function setIsReturningNativeClass(bool $isReturningNativeClass): FunctionEntity
-    {
-        $this->isReturningNativeClass = $isReturningNativeClass;
         return $this;
     }
 

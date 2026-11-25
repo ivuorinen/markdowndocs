@@ -21,6 +21,7 @@
     "require": {
         "php": "^8.3",
         "ext-tokenizer": "*",
+        "phpstan/phpdoc-parser": "^2.0",
         "symfony/console": "^6 || ^7 || ^8"
     },
     "require-dev": {
