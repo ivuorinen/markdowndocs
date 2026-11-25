@@ -36,6 +36,53 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
     public const string OPT_NO_EXAMPLES = 'no-examples';
 
     /**
+     * The options after the class argument, as addOption() takes them: name,
+     * shortcut, mode, description and default.
+     *
+     * @var list<array{string, ?string, int, string, ?string}>
+     */
+    private const array OPTIONS = [
+        [
+            self::OPT_BOOTSTRAP,
+            'b',
+            InputOption::VALUE_REQUIRED,
+            'File to be included before generating documentation',
+            null,
+        ],
+        [self::OPT_IGNORE, 'i', InputOption::VALUE_REQUIRED, 'Directories to ignore', ''],
+        [
+            self::OPT_VISIBILITY,
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'The visibility of the methods to import, a comma-separated list.',
+            '',
+        ],
+        [
+            self::OPT_METHOD_REGEX,
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'The full regular expression methods should match to be included in the output.',
+            '',
+        ],
+        [
+            self::OPT_TABLE_GENERATOR,
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'The slug of a supported table generator class or a fully qualified TableGenerator interface implementation class name.', // phpcs:ignore
+            'default',
+        ],
+        [self::OPT_SEE, null, InputOption::VALUE_NONE, 'Include @see in generated markdown', null],
+        [self::OPT_NO_INTERNAL, null, InputOption::VALUE_NONE, 'Ignore entities marked @internal', null],
+        [
+            self::OPT_NO_EXAMPLES,
+            null,
+            InputOption::VALUE_NONE,
+            'Do not append @example blocks after each function table',
+            null,
+        ],
+    ];
+
+    /**
      * @var array<string, ClassEntity> reflected classes by the name they were asked for
      */
     private array $memory = [];
@@ -46,6 +93,17 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
     private array $visibilityFilter = [];
 
     private string $methodRegex = '';
+
+    private bool $includeSee = false;
+
+    private bool $noInternal = false;
+
+    private bool $appendExamples = true;
+
+    /**
+     * A single class is written without a table of contents or section anchors.
+     */
+    private bool $requestingOneClass = false;
 
     /**
      * Where diagnostics go. Writing to STDERR directly bypassed --quiet and made
@@ -60,63 +118,11 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         $this
             ->setName('generate')
             ->setDescription('Get docs for given class/source directory)')
-            ->addArgument(
-                self::ARG_CLASS,
-                InputArgument::REQUIRED,
-                'Class or source directory'
-            )
-            ->addOption(
-                self::OPT_BOOTSTRAP,
-                'b',
-                InputOption::VALUE_REQUIRED,
-                'File to be included before generating documentation'
-            )
-            ->addOption(
-                self::OPT_IGNORE,
-                'i',
-                InputOption::VALUE_REQUIRED,
-                'Directories to ignore',
-                ''
-            )
-            ->addOption(
-                self::OPT_VISIBILITY,
-                null,
-                InputOption::VALUE_OPTIONAL,
-                'The visibility of the methods to import, a comma-separated list.',
-                ''
-            )
-            ->addOption(
-                self::OPT_METHOD_REGEX,
-                null,
-                InputOption::VALUE_OPTIONAL,
-                'The full regular expression methods should match to be included in the output.',
-                ''
-            )
-            ->addOption(
-                self::OPT_TABLE_GENERATOR,
-                null,
-                InputOption::VALUE_OPTIONAL,
-                'The slug of a supported table generator class or a fully qualified TableGenerator interface implementation class name.', // phpcs:ignore
-                'default'
-            )
-            ->addOption(
-                self::OPT_SEE,
-                null,
-                InputOption::VALUE_NONE,
-                'Include @see in generated markdown'
-            )
-            ->addOption(
-                self::OPT_NO_INTERNAL,
-                null,
-                InputOption::VALUE_NONE,
-                'Ignore entities marked @internal'
-            )
-            ->addOption(
-                self::OPT_NO_EXAMPLES,
-                null,
-                InputOption::VALUE_NONE,
-                'Do not append @example blocks after each function table'
-            );
+            ->addArgument(self::ARG_CLASS, InputArgument::REQUIRED, 'Class or source directory');
+
+        foreach (self::OPTIONS as [$name, $shortcut, $mode, $description, $default]) {
+            $this->addOption($name, $shortcut, $mode, $description, $default);
+        }
     }
 
     /**
@@ -128,56 +134,12 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         $this->errorOutput = $output instanceof ConsoleOutputInterface
             ? $output->getErrorOutput()
             : $output;
+        $this->readOptions($input);
 
-        $classes = self::stringInput($input->getArgument(self::ARG_CLASS));
-        $bootstrap = self::stringInput($input->getOption(self::OPT_BOOTSTRAP));
-        $ignore = explode(',', self::stringInput($input->getOption(self::OPT_IGNORE)));
-        $visibility = self::stringInput($input->getOption(self::OPT_VISIBILITY));
-        $this->visibilityFilter = $visibility === ''
-            ? ['public', 'protected', 'abstract', 'final']
-            : array_map('trim', explode(',', $visibility));
-        $this->methodRegex = self::stringInput($input->getOption(self::OPT_METHOD_REGEX));
-        $includeSee = $input->getOption(self::OPT_SEE) === true;
-        $noInternal = $input->getOption(self::OPT_NO_INTERNAL) === true;
-        $appendExamples = $input->getOption(self::OPT_NO_EXAMPLES) !== true;
-        $requestingOneClass = false;
-
-        if ($bootstrap !== '') {
-            // A "./" prefix resolves against the working directory and skips the
-            // include_path, which is what prefixing getcwd() did — but getcwd()
-            // returns false once that directory is deleted, and false
-            // concatenates to "", resolving the file against the filesystem root.
-            /** @psalm-suppress UnresolvableInclude The path is the user's --bootstrap argument. */
-            require_once str_starts_with($bootstrap, '/') ? $bootstrap : './' . $bootstrap;
-        }
-
-        $classCollection = [];
-        // Listed names that cannot be documented. They were asked for, so they
-        // keep their place in the table of contents — as text, since there is
-        // no section to link to.
-        $unlisted = [];
-        if (str_contains($classes, ',')) {
-            foreach (explode(',', $classes) as $class) {
-                $class = trim($class);
-                if ($class === '') {
-                    continue;
-                }
-                // Written the way a directory scan and ClassEntity write class
-                // names, so a name listed as text reads like the linked ones.
-                $class = Utils::sanitizeClassName($class);
-                if (!$this->isDocumentable($class, reportMissing: true)) {
-                    $unlisted[$class] = true;
-                }
-                $classCollection[0][] = $class;
-            }
-        } elseif ($this->isDocumentable($classes)) {
-            $classCollection[] = [$classes];
-            $requestingOneClass = true;
-        } elseif (is_dir($classes)) {
-            $classCollection = $this->findClassesInDir($classes, [], $ignore);
-        } else {
-            throw new InvalidArgumentException('Given input is neither a class nor a source directory');
-        }
+        [$classCollection, $unlisted] = $this->collectClasses(
+            self::stringInput($input->getArgument(self::ARG_CLASS)),
+            explode(',', self::stringInput($input->getOption(self::OPT_IGNORE)))
+        );
 
         // VALUE_OPTIONAL yields null, not the declared default, when the flag is
         // written with no value and no token follows it.
@@ -202,20 +164,15 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
                 $class = $this->getClassEntity($className);
 
-                if ($class->hasIgnoreTag() || ($class->hasInternalTag() && $noInternal)) {
-                    continue;
-                }
-
                 // Reflection resolves a class_alias to the original, so two files
                 // can yield the same entity — a deprecation shim beside the class
                 // it renames. Emitting it twice duplicates the anchor id, and an
                 // id has to be unique for the cross-references to resolve.
-                if (isset($documented[$class->getName()])) {
+                if ($this->isLeftOut($class) || isset($documented[$class->getName()])) {
                     continue;
                 }
                 $documented[$class->getName()] = true;
 
-                // Add to tbl of contents
                 $tableOfContent[] = sprintf(
                     '- [%s](#%s)',
                     $class->generateTitle('%name% %extra%'),
@@ -224,81 +181,11 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
                 // A single class is written without a section anchor, and a link
                 // to one would lead nowhere.
-                if (!$requestingOneClass) {
+                if (!$this->requestingOneClass) {
                     $anchors[strtolower($class->getName())] = '#' . $class->generateAnchor();
                 }
 
-                // generate function table
-                // openTable() resets declareAbstraction, so both toggles are set
-                // after it rather than before.
-                $tableGenerator->openTable();
-                $tableGenerator->appendExamplesToEndOfTable($appendExamples);
-                $tableGenerator->doDeclareAbstraction(!$class->isInterface());
-                $this->reportProblems($class->getName(), $class->getProblems());
-                foreach ($class->getFunctions() as $func) {
-                    if ($noInternal && $func->isInternal()) {
-                        continue;
-                    }
-                    // Named by the class whose docblock it is: an inherited
-                    // method's problems are in its parent's docblock.
-                    $this->reportProblems($func->getClass() . '::' . $func->getName() . '()', $func->getProblems());
-                    $tableGenerator->addFunc($func, $includeSee);
-                }
-
-                $docs = (
-                    $requestingOneClass
-                    ? ''
-                    : '<hr /><a id="' . $class->generateAnchor() . '"></a>' . PHP_EOL . PHP_EOL
-                );
-
-                if ($class->isDeprecated()) {
-                    // rtrim: a bare "@deprecated" carries no message, and the
-                    // separator would otherwise leave a dangling trailing space.
-                    $docs .= '### <del>' . $class->generateTitle() . '</del>' . PHP_EOL . PHP_EOL .
-                        rtrim('> **DEPRECATED** ' . $class->getDeprecationMessage()) . PHP_EOL . PHP_EOL;
-                } else {
-                    $docs .= '### ' . $class->generateTitle() . PHP_EOL . PHP_EOL;
-                }
-                // The notice is added to the description, not put in its place.
-                if ($class->getDescription()) {
-                    $docs .= '> ' . $class->getDescription() . PHP_EOL . PHP_EOL;
-                }
-
-                if ($includeSee && $seeArray = $class->getSee()) {
-                    foreach ($seeArray as $see) {
-                        $docs .= 'See ' . $see . '<br />' . PHP_EOL;
-                    }
-                    $docs .= PHP_EOL;
-                }
-
-                if ($example = $class->getExample()) {
-                    $line = sprintf(
-                        '###### Example%s%s',
-                        PHP_EOL,
-                        // The selected generator, not the built-in one — a custom
-                        // generator implements this as part of the interface and
-                        // used to be bypassed here for class-level examples only.
-                        $tableGenerator::formatExampleComment($example)
-                    );
-
-                    $docs .= $line .
-                        PHP_EOL .
-                        PHP_EOL;
-                }
-
-                $docs .= $tableGenerator->getTable() . PHP_EOL . PHP_EOL;
-
-                // Written as plain names: linkClassNames() links them once every
-                // section is known, and only to sections the document has.
-                if ($class->getExtends()) {
-                    $docs .= PHP_EOL . '*This class extends ' . $class->getExtends() . '*' . PHP_EOL;
-                }
-
-                if ($interfaces = $class->getInterfaces()) {
-                    $docs .= PHP_EOL . '*This class implements ' . implode(', ', $interfaces) . '*' . PHP_EOL;
-                }
-
-                $body[] = $docs;
+                $body[] = $this->classSection($class, $tableGenerator);
             }
         }
 
@@ -308,20 +195,199 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
             throw new InvalidArgumentException('No classes found');
         }
 
-        // Everything below is document content, not console chrome. Written
+        $this->writeDocument($output, $tableOfContent, self::linkClassNames(implode(PHP_EOL, $body), $anchors));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Read the options that shape the whole run, and include the bootstrap
+     * file when one is given.
+     */
+    private function readOptions(InputInterface $input): void
+    {
+        $visibility = self::stringInput($input->getOption(self::OPT_VISIBILITY));
+        $this->visibilityFilter = $visibility === ''
+            ? ['public', 'protected', 'abstract', 'final']
+            : array_map('trim', explode(',', $visibility));
+        $this->methodRegex = self::stringInput($input->getOption(self::OPT_METHOD_REGEX));
+        $this->includeSee = $input->getOption(self::OPT_SEE) === true;
+        $this->noInternal = $input->getOption(self::OPT_NO_INTERNAL) === true;
+        $this->appendExamples = $input->getOption(self::OPT_NO_EXAMPLES) !== true;
+        $this->requestingOneClass = false;
+
+        $bootstrap = self::stringInput($input->getOption(self::OPT_BOOTSTRAP));
+        if ($bootstrap !== '') {
+            // A "./" prefix resolves against the working directory and skips the
+            // include_path, which is what prefixing getcwd() did — but getcwd()
+            // returns false once that directory is deleted, and false
+            // concatenates to "", resolving the file against the filesystem root.
+            /** @psalm-suppress UnresolvableInclude The path is the user's --bootstrap argument. */
+            require_once str_starts_with($bootstrap, '/') ? $bootstrap : './' . $bootstrap;
+        }
+    }
+
+    /**
+     * The classes the class argument asks for, grouped as the document lists
+     * them, and the listed names that cannot be documented.
+     *
+     * A listed name that cannot be documented was still asked for, so it
+     * keeps its place in the table of contents — as text, since there is no
+     * section to link to.
+     *
+     * @param list<string> $ignore directory names to skip when scanning
+     *
+     * @return array{array<array-key, list<string>>, array<string, true>}
+     *
+     * @throws \InvalidArgumentException when the argument is neither a class
+     *                                   nor a directory
+     */
+    private function collectClasses(string $classes, array $ignore): array
+    {
+        if (str_contains($classes, ',')) {
+            $listed = [];
+            $unlisted = [];
+            foreach (explode(',', $classes) as $class) {
+                $class = trim($class);
+                if ($class === '') {
+                    continue;
+                }
+                // Written the way a directory scan and ClassEntity write class
+                // names, so a name listed as text reads like the linked ones.
+                $class = Utils::sanitizeClassName($class);
+                if (!$this->isDocumentable($class, reportMissing: true)) {
+                    $unlisted[$class] = true;
+                }
+                $listed[] = $class;
+            }
+
+            return [$listed === [] ? [] : [$listed], $unlisted];
+        }
+        if ($this->isDocumentable($classes)) {
+            $this->requestingOneClass = true;
+
+            return [[[$classes]], []];
+        }
+        if (is_dir($classes)) {
+            return [$this->findClassesInDir($classes, [], $ignore), []];
+        }
+
+        throw new InvalidArgumentException('Given input is neither a class nor a source directory');
+    }
+
+    /**
+     * Whether the class is kept out of the document: by @ignore, or by
+     * @internal under --no-internal.
+     */
+    private function isLeftOut(ClassEntity $class): bool
+    {
+        return $class->hasIgnoreTag() || ($class->hasInternalTag() && $this->noInternal);
+    }
+
+    /**
+     * The class's section: its heading, description, references and example,
+     * the table of its methods, and the lines naming its parent and interfaces.
+     */
+    private function classSection(ClassEntity $class, TableGenerator $tableGenerator): string
+    {
+        $table = $this->functionTable($class, $tableGenerator);
+
+        $docs = $this->requestingOneClass
+            ? ''
+            : '<hr /><a id="' . $class->generateAnchor() . '"></a>' . PHP_EOL . PHP_EOL;
+
+        if ($class->isDeprecated()) {
+            // rtrim: a bare "@deprecated" carries no message, and the
+            // separator would otherwise leave a dangling trailing space.
+            $docs .= '### <del>' . $class->generateTitle() . '</del>' . PHP_EOL . PHP_EOL .
+                rtrim('> **DEPRECATED** ' . $class->getDeprecationMessage()) . PHP_EOL . PHP_EOL;
+        } else {
+            $docs .= '### ' . $class->generateTitle() . PHP_EOL . PHP_EOL;
+        }
+        // The notice is added to the description, not put in its place.
+        if ($class->getDescription()) {
+            $docs .= '> ' . $class->getDescription() . PHP_EOL . PHP_EOL;
+        }
+
+        if ($this->includeSee && $seeArray = $class->getSee()) {
+            foreach ($seeArray as $see) {
+                $docs .= 'See ' . $see . '<br />' . PHP_EOL;
+            }
+            $docs .= PHP_EOL;
+        }
+
+        if ($example = $class->getExample()) {
+            // The selected generator, not the built-in one — a custom
+            // generator implements this as part of the interface and used to
+            // be bypassed here for class-level examples only.
+            $docs .= '###### Example' . PHP_EOL . $tableGenerator::formatExampleComment($example) .
+                PHP_EOL . PHP_EOL;
+        }
+
+        return $docs . $table . PHP_EOL . PHP_EOL . self::inheritanceLines($class);
+    }
+
+    /**
+     * The table of the class's documented methods, as the generator writes
+     * it. Each docblock tag that could not be read is reported on the way.
+     */
+    private function functionTable(ClassEntity $class, TableGenerator $tableGenerator): string
+    {
+        // openTable() resets declareAbstraction, so both toggles are set
+        // after it rather than before.
+        $tableGenerator->openTable();
+        $tableGenerator->appendExamplesToEndOfTable($this->appendExamples);
+        $tableGenerator->doDeclareAbstraction(!$class->isInterface());
+        $this->reportProblems($class->getName(), $class->getProblems());
+        foreach ($class->getFunctions() as $func) {
+            if ($this->noInternal && $func->isInternal()) {
+                continue;
+            }
+            // Named by the class whose docblock it is: an inherited
+            // method's problems are in its parent's docblock.
+            $this->reportProblems($func->getClass() . '::' . $func->getName() . '()', $func->getProblems());
+            $tableGenerator->addFunc($func, $this->includeSee);
+        }
+
+        return $tableGenerator->getTable();
+    }
+
+    /**
+     * The "This class extends/implements" lines under a class's table.
+     *
+     * Written as plain names: linkClassNames() links them once every section
+     * is known, and only to sections the document has.
+     */
+    private static function inheritanceLines(ClassEntity $class): string
+    {
+        $lines = '';
+        if ($class->getExtends()) {
+            $lines .= PHP_EOL . '*This class extends ' . $class->getExtends() . '*' . PHP_EOL;
+        }
+        if ($interfaces = $class->getInterfaces()) {
+            $lines .= PHP_EOL . '*This class implements ' . implode(', ', $interfaces) . '*' . PHP_EOL;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Write the table of contents — left out for a single class — and the
+     * document.
+     *
+     * @param list<string> $tableOfContent
+     */
+    private function writeDocument(OutputInterface $output, array $tableOfContent, string $document): void
+    {
+        // Everything here is document content, not console chrome. Written
         // formatted, Symfony's OutputFormatter would consume any <info>,
         // <comment> or <error> that appears in a docblock.
-        if (!$requestingOneClass) {
+        if (!$this->requestingOneClass) {
             $output->writeln('## Table of contents' . PHP_EOL, OutputInterface::OUTPUT_RAW);
             $output->writeln(implode(PHP_EOL, $tableOfContent), OutputInterface::OUTPUT_RAW);
         }
 
-        $output->writeln(
-            PHP_EOL . self::linkClassNames(implode(PHP_EOL, $body), $anchors),
-            OutputInterface::OUTPUT_RAW
-        );
-
-        return self::SUCCESS;
+        $output->writeln(PHP_EOL . $document, OutputInterface::OUTPUT_RAW);
     }
 
     /**
@@ -430,12 +496,9 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
                 continue;
             }
 
-            // Without the extension test every file in the tree — images,
-            // archives, fixtures — is read whole into memory before being
-            // discarded, so one large asset can exhaust memory_limit.
-            if ($f->isFile() && strtolower($f->getExtension()) === 'php') {
-                $found = $this->findClassInFile($f->getRealPath());
-                if ($found !== null && $this->isDocumentable($found[1])) {
+            if ($f->isFile()) {
+                $found = $this->documentableClassIn($f);
+                if ($found !== null) {
                     $collection[$found[0]][] = $found[1];
                 }
             } elseif ($f->isDir() && !$this->shouldIgnoreDirectory($f->getFilename(), $ignores)) {
@@ -452,6 +515,25 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         ksort($collection);
 
         return $collection;
+    }
+
+    /**
+     * The namespace and name of the class a .php file declares, when it can be
+     * documented; null for any other file.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function documentableClassIn(\SplFileInfo $file): ?array
+    {
+        // Without the extension test every file in the tree — images,
+        // archives, fixtures — is read whole into memory before being
+        // discarded, so one large asset can exhaust memory_limit.
+        if (strtolower($file->getExtension()) !== 'php') {
+            return null;
+        }
+        $found = $this->findClassInFile($file->getRealPath());
+
+        return $found !== null && $this->isDocumentable($found[1]) ? $found : null;
     }
 
     /**

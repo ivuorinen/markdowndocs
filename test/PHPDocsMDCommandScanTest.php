@@ -181,6 +181,27 @@ class PHPDocsMDCommandScanTest extends CommandTestCase
     }
 
     /**
+     * Only .php files are read. The decoy declares a class that does exist,
+     * so a scan reading every file would find and document it.
+     */
+    public function testAFileWithAnotherExtensionIsNotRead(): void
+    {
+        $dir = sys_get_temp_dir() . '/phpdocsmd-extension-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        file_put_contents($dir . '/decoy.txt', "<?php\n\nnamespace Acme\\Fixtures\\Links;\n\nclass Bar\n{\n}\n");
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('No classes found');
+
+            $this->tester->execute(['class' => $dir]);
+        } finally {
+            unlink($dir . '/decoy.txt');
+            rmdir($dir);
+        }
+    }
+
+    /**
      * A file the scan cannot read is reported and skipped. Its read failure
      * was a PHP warning printed to stdout, into the document, while the class
      * vanished without a word.
