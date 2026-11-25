@@ -412,18 +412,23 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         ksort($entries, SORT_STRING);
 
         foreach ($entries as $f) {
+            // A link is not followed — that keeps the scan inside the tree and
+            // out of cycles — but it is reported, or a linked package would go
+            // undocumented without a word.
+            if ($f->isLink()) {
+                $this->warnSkipping($f->getPathname(), 'symbolic link, not followed');
+                continue;
+            }
+
             // Without the extension test every file in the tree — images,
             // archives, fixtures — is read whole into memory before being
             // discarded, so one large asset can exhaust memory_limit.
-            if ($f->isFile() && !$f->isLink() && strtolower($f->getExtension()) === 'php') {
-                [$ns, $className] = $this->findClassInFile($f->getRealPath());
-                if ($className && $this->isDocumentable($className)) {
-                    $collection[$ns][] = $className;
+            if ($f->isFile() && strtolower($f->getExtension()) === 'php') {
+                $found = $this->findClassInFile($f->getRealPath());
+                if ($found !== null && $this->isDocumentable($found[1])) {
+                    $collection[$found[0]][] = $found[1];
                 }
-            } elseif ($f->isDir() &&
-                !$f->isLink() &&
-                !$this->shouldIgnoreDirectory($f->getFilename(), $ignores)
-            ) {
+            } elseif ($f->isDir() && !$this->shouldIgnoreDirectory($f->getFilename(), $ignores)) {
                 $collection = $this->findClassesInDir($f->getRealPath(), $collection, $ignores);
             }
         }
@@ -506,13 +511,24 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
      * endings, and stops a stray "class" inside a string or an identifier from
      * being read as a declaration.
      *
-     * @return array{0: string|false, 1: string|false}
+     * @return array{0: string, 1: string}|null namespace and fully qualified
+     *                                         name, or null if the file
+     *                                         declares no named type
      */
-    private function findClassInFile(string $file): array
+    private function findClassInFile(string $file): ?array
     {
+        // The @ keeps PHP from printing a read failure to stdout, which is the
+        // document; the skip is reported on stderr instead.
+        $source = @file_get_contents($file);
+        if ($source === false) {
+            $this->warnSkipping($file, 'cannot read the file');
+
+            return null;
+        }
+
         $ns = '';
-        $class = false;
-        $tokens = token_get_all((string)file_get_contents($file));
+        $class = '';
+        $tokens = token_get_all($source);
 
         foreach ($tokens as $i => $token) {
             if (!is_array($token)) {
@@ -534,7 +550,7 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
             }
         }
 
-        return $class ? [$ns, $ns . '\\' . $class] : [false, false];
+        return $class !== '' ? [$ns, $ns . '\\' . $class] : null;
     }
 
     /**

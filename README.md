@@ -55,6 +55,7 @@ out of the code so that functions that are missing DocBlock comments will still 
 - Reflection must be enabled in php.ini
 - Each class, interface, trait or enum must be defined in its own `.php` file, with the file name being the same as the type name. Files with
   another extension are not scanned
+- Symbolic links in a scanned directory are not followed; each one is reported on stderr
 - The project should use [Composer](https://getcomposer.org/)
 
 ### Installation / Usage

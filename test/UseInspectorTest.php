@@ -122,6 +122,15 @@ class UseInspectorTest extends TestCase
     }
 
     /**
+     * A file that cannot be read has no imports to report, and the failure is
+     * not a PHP warning printed into whatever the caller is writing.
+     */
+    public function testAnUnreadableFileHasNoImports(): void
+    {
+        $this->assertSame([], $this->inspector->getUseStatementsInFile(__DIR__ . '/no-such-file.php'));
+    }
+
+    /**
      * A trait import inside a class body is not a file-level import. It was read
      * as one and written unqualified, so it overwrote the real import of the
      * same name — every docblock type resolved through that name then pointed at

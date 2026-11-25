@@ -666,6 +666,82 @@ class PHPDocsMDCommandTest extends TestCase
         );
     }
 
+    /**
+     * A file the scan cannot read is reported and skipped. Its read failure
+     * was a PHP warning printed to stdout, into the document, while the class
+     * vanished without a word.
+     */
+    public function testAnUnreadableFileIsReportedAndKeptOutOfTheDocument(): void
+    {
+        $dir = sys_get_temp_dir() . '/phpdocsmd-unreadable-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        file_put_contents($dir . '/Readable.php', "<?php\n\nnamespace Acme\\Unreadable;\n\nclass Readable\n{\n}\n");
+        file_put_contents($dir . '/Locked.php', "<?php\n\nnamespace Acme\\Unreadable;\n\nclass Locked\n{\n}\n");
+        chmod($dir . '/Locked.php', 0o000);
+
+        try {
+            if (is_readable($dir . '/Locked.php')) {
+                $this->markTestSkipped('running with permission to read any file');
+            }
+
+            $this->tester->execute(
+                ['class' => $dir, '--bootstrap' => $dir . '/Readable.php'],
+                ['capture_stderr_separately' => true]
+            );
+
+            $this->assertStringContainsString('### Class: \\Acme\\Unreadable\\Readable', $this->tester->getDisplay());
+            $this->assertStringNotContainsString('Locked', $this->tester->getDisplay());
+            // The scan reports resolved paths.
+            $this->assertStringContainsString(
+                'phpdoc-md: skipping ' . realpath($dir) . '/Locked.php (cannot read the file)',
+                $this->tester->getErrorOutput()
+            );
+        } finally {
+            chmod($dir . '/Locked.php', 0o644);
+            unlink($dir . '/Locked.php');
+            unlink($dir . '/Readable.php');
+            rmdir($dir);
+        }
+    }
+
+    /**
+     * Symbolic links are not followed — that keeps the scan inside the tree
+     * and out of cycles — but each one is reported, so a linked package that
+     * goes undocumented does not go unnoticed.
+     */
+    public function testASymbolicLinkIsReportedAndNotFollowed(): void
+    {
+        $dir = sys_get_temp_dir() . '/phpdocsmd-links-' . bin2hex(random_bytes(4));
+        mkdir($dir . '/real', 0o777, true);
+        file_put_contents($dir . '/real/Linked.php', "<?php\n\nnamespace Acme\\Links;\n\nclass Linked\n{\n}\n");
+        symlink($dir . '/real/Linked.php', $dir . '/LinkedFile.php');
+        symlink($dir . '/real', $dir . '/linked-dir');
+
+        try {
+            $this->tester->execute(
+                ['class' => $dir, '--bootstrap' => $dir . '/real/Linked.php'],
+                ['capture_stderr_separately' => true]
+            );
+
+            $this->assertStringContainsString(
+                'phpdoc-md: skipping ' . $dir . '/LinkedFile.php (symbolic link, not followed)',
+                $this->tester->getErrorOutput()
+            );
+            $this->assertStringContainsString(
+                'phpdoc-md: skipping ' . $dir . '/linked-dir (symbolic link, not followed)',
+                $this->tester->getErrorOutput()
+            );
+            // Documented once, through the real file only.
+            $this->assertSame(1, substr_count($this->tester->getDisplay(), '### Class: \\Acme\\Links\\Linked'));
+        } finally {
+            unlink($dir . '/LinkedFile.php');
+            unlink($dir . '/linked-dir');
+            unlink($dir . '/real/Linked.php');
+            rmdir($dir . '/real');
+            rmdir($dir);
+        }
+    }
+
     public function testACommaSeparatedListDocumentsEachClass(): void
     {
         $this->tester->execute(['class' => 'Acme\\Fixtures\\Links\\Bar,Acme\\Fixtures\\Links\\BarBaz']);

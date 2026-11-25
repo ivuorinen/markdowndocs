@@ -35,7 +35,11 @@ class UseInspector
 
     public function getUseStatementsInFile(string $filePath): array
     {
-        return $this->getUseStatementsInString((string)file_get_contents($filePath));
+        // A file that cannot be read has no imports to report: false becomes "",
+        // which imports nothing. The @ keeps PHP from printing the failure — the
+        // caller is usually writing a document to stdout, and the warning
+        // landed in it.
+        return $this->getUseStatementsInString((string)@file_get_contents($filePath));
     }
 
     /**
