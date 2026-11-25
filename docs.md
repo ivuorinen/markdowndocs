@@ -75,7 +75,7 @@
 | public | <strong>appendExamplesToEndOfTable(</strong><em>bool</em> <strong>$toggle)</strong> : <em>void</em><br /><em>All example comments found while generating the table will be appended to the end of the table. Setting $toggle to false prevents this behaviour.</em> |
 | public | <strong>doDeclareAbstraction(</strong><em>bool</em> <strong>$toggle)</strong> : <em>void</em><br /><em>Toggle whether methods being abstract (or part of an interface) should be declared as abstract in the table</em> |
 | public static | <strong>formatExampleComment(</strong><em>string</em> <strong>$example)</strong> : <em>string</em><br /><em>Create a markdown-formatted code view out of an example comment</em> |
-| public | <strong>getTable()</strong> : <em>string</em> |
+| public | <strong>getTable()</strong> : <em>string</em><br /><em>The finished markdown for the rows added since openTable(), with the collected examples appended when appendExamplesToEndOfTable() allows. The command writes it below the class heading and links class names in it per the markup convention above.</em> |
 | public | <strong>openTable()</strong> : <em>void</em><br /><em>Begin generating a new markdown-formatted table</em> |
 
 
@@ -122,8 +122,8 @@
 
 | Visibility | Function |
 |:-----------|:---------|
-| public | <strong>getUseStatements(</strong><em>[\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php)</em> <strong>$reflectionClass)</strong> : <em>array</em> |
-| public | <strong>getUseStatementsInFile(</strong><em>string</em> <strong>$filePath)</strong> : <em>array</em> |
+| public | <strong>getUseStatements(</strong><em>[\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php)</em> <strong>$reflectionClass)</strong> : <em>array&lt;string, string&gt;</em><br /><em>The classes the file declaring this class imports, keyed by the name the file writes them under; empty for a class with no file (an internal one).</em> |
+| public | <strong>getUseStatementsInFile(</strong><em>string</em> <strong>$filePath)</strong> : <em>array&lt;string, string&gt;</em><br /><em>The classes a PHP file imports, as getUseStatementsInString() reads them; empty when the file cannot be read.</em> |
 | public | <strong>getUseStatementsInString(</strong><em>string</em> <strong>$content)</strong> : <em>array&lt;string, string&gt;</em><br /><em>Collect the classes a piece of PHP imports. Keyed by the name the importing file actually writes — the alias when there is one, the last segment otherwise — because that is the name a docblock type has to be looked up by. Tokenising rather than splitting on the string "use" is what keeps prose ("because"), closure captures (`function () use ($x)`) and comment text out of the result, and what makes aliases and group imports resolvable: use A\B;             -> ['B' => '\A\B'] use A\B as C;        -> ['C' => '\A\B'] use A\{B, C};        -> ['B' => '\A\B', 'C' => '\A\C'] use function strlen; -> skipped   (not a class)</em> |
 
 
@@ -135,7 +135,7 @@
 
 | Visibility | Function |
 |:-----------|:---------|
-| public static | <strong>getClassBaseName(</strong><em>string</em> <strong>$fullClassName)</strong> : <em>string</em> |
+| public static | <strong>getClassBaseName(</strong><em>string</em> <strong>$fullClassName)</strong> : <em>string</em><br /><em>The last segment of a class name: "Foo" for "\Acme\NS\Foo". For class names only — a type expression such as "Collection<Foo>" has no single base name.</em> |
 | public static | <strong>isClassReference(</strong><em>string</em> <strong>$typeDeclaration)</strong> : <em>bool</em><br /><em>Whether the declaration names a class. It goes through isNativeType() so that the two cannot disagree: they once normalised the leading backslash differently, and "\string" came out both native and a class reference.</em> |
 | public static | <strong>isNativeType(</strong><em>string</em> <strong>$type=`''`)</strong> : <em>bool</em><br /><em>Whether the name is a type keyword rather than a class. No PHP identifier can contain a hyphen, so every hyphenated name is a pseudo-type, including the ones PHPStan and Psalm add after this list was written.</em> |
 | public static | <strong>sanitizeClassName(</strong><em>string</em> <strong>$name)</strong> : <em>string</em><br /><em>A class name in the one form the generator compares and prints: one leading backslash, no surrounding spaces or backslashes.</em> |
@@ -150,7 +150,7 @@
 | Visibility | Function |
 |:-----------|:---------|
 | public | <strong>__construct()</strong> : <em>void</em> |
-| public | <strong>run(</strong><em>\Symfony\Component\Console\Input\InputInterface \| null</em> <strong>$input=null</strong>, <em>\Symfony\Component\Console\Output\OutputInterface \| null</em> <strong>$output=null)</strong> : <em>int</em> |
+| public | <strong>run(</strong><em>\Symfony\Component\Console\Input\InputInterface \| null</em> <strong>$input=null</strong>, <em>\Symfony\Component\Console\Output\OutputInterface \| null</em> <strong>$output=null)</strong> : <em>int</em><br /><em>Register the generate command and run the application; the exit code is the command's. bin/phpdoc-md calls this with no arguments, which reads argv and writes to the console.</em> |
 
 
 *This class extends \Symfony\Component\Console\Application*
@@ -186,7 +186,7 @@
 | public | <strong>generateTitle(</strong><em>string</em> <strong>$format=`'%label%: %name% %extra%'`)</strong> : <em>string</em><br /><em>Generate a title describing the class this object is referring to</em> |
 | public | <strong>getExtends()</strong> : <em>string</em> |
 | public | <strong>getFunctions()</strong> : <em>array</em> |
-| public | <strong>getInterfaces()</strong> : <em>array</em> |
+| public | <strong>getInterfaces()</strong> : <em>list&lt;string&gt;</em> |
 | public | <strong>hasIgnoreTag(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
 | public | <strong>hasInternalTag(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
 | public | <strong>isAbstract(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
@@ -194,10 +194,10 @@
 | public | <strong>isInterface(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
 | public | <strong>isSame(</strong><em>object \| string</em> <strong>$class)</strong> : <em>bool</em><br /><em>Check whether this object is referring to given class name or object instance</em> |
 | public | <strong>isTrait(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
-| public | <strong>setExtends(</strong><em>string</em> <strong>$extends)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
+| public | <strong>setExtends(</strong><em>string</em> <strong>$extends)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Stored with a leading backslash, the form type cells and section anchors compare against.</em> |
 | public | <strong>setFunctions(</strong><em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)[]</em> <strong>$functions)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
-| public | <strong>setInterfaces(</strong><em>array</em> <strong>$implements)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
-| public | <strong>setName(</strong><em>string</em> <strong>$name)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
+| public | <strong>setInterfaces(</strong><em>list&lt;string&gt;</em> <strong>$implements)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Each name is stored with a leading backslash, the form type cells and section anchors compare against.</em> |
+| public | <strong>setName(</strong><em>string</em> <strong>$name)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Stored with a leading backslash, the form type cells and section anchors compare against.</em> |
 
 
 *This class extends [\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)*
@@ -215,7 +215,7 @@
 | public | <strong>getExample()</strong> : <em>string</em> |
 | public | <strong>getName()</strong> : <em>string</em> |
 | public | <strong>getProblems()</strong> : <em>list&lt;string&gt;</em><br /><em>What could not be read from the docblock, one message per tag — the documentation it carried is missing from the output, so the command reports each one rather than let it vanish.</em> |
-| public | <strong>getSee()</strong> : <em>array</em> |
+| public | <strong>getSee()</strong> : <em>list&lt;string&gt;</em> |
 | public | <strong>isDeprecated(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool</em> |
 | public | <strong>isInternal(</strong><em>bool \| null</em> <strong>$toggle=null)</strong> : <em>bool \| null</em> |
 | public | <strong>setDeprecationMessage(</strong><em>string</em> <strong>$deprecationMessage)</strong> : <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)</em> |
@@ -262,7 +262,7 @@
 | public | <strong>getDefault()</strong> : <em>string</em> |
 | public | <strong>getType()</strong> : <em>string</em> |
 | public | <strong>hasDefault()</strong> : <em>bool</em><br /><em>Whether a default value was declared at all. Distinct from getDefault() being truthy: "0" and "" are perfectly good defaults.</em> |
-| public | <strong>setDefault(</strong><em>string</em> <strong>$default)</strong> : <em>[\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)</em> |
+| public | <strong>setDefault(</strong><em>string</em> <strong>$default)</strong> : <em>[\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)</em><br /><em>Records the default as it is to be printed, and that one exists: hasDefault() is what tells "no default" from a default of "" or "0".</em> |
 | public | <strong>setType(</strong><em>string</em> <strong>$type)</strong> : <em>[\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)</em> |
 
 
@@ -277,7 +277,7 @@
 | Visibility | Function |
 |:-----------|:---------|
 | public | <strong>__construct(</strong><em>[\PHPDocsMD\DocInfoExtractor](#class-phpdocsmd-docinfoextractor)</em> <strong>$docInfoExtractor)</strong> : <em>void</em> |
-| public | <strong>create(</strong><em>[\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php)</em> <strong>$reflection)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
+| public | <strong>create(</strong><em>[\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php)</em> <strong>$reflection)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>The class's entity with its kind, parent, interfaces and class docblock applied; its methods are added afterwards by Reflector.</em> |
 
 
 <hr /><a id="class-phpdocsmd-reflections-functionfinder"></a>
@@ -288,8 +288,8 @@
 
 | Visibility | Function |
 |:-----------|:---------|
-| public | <strong>find(</strong><em>string</em> <strong>$methodName</strong>, <em>string</em> <strong>$className)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity) \| false</em> |
-| public | <strong>findInClasses(</strong><em>string</em> <strong>$methodName</strong>, <em>array</em> <strong>$classes)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity) \| false</em> |
+| public | <strong>find(</strong><em>string</em> <strong>$methodName</strong>, <em>string</em> <strong>$className)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity) \| false</em><br /><em>The method as the class, or the nearest ancestor declaring it, documents it; false when nothing up the chain declares it. Used to resolve , so the entity carries the declaring class's documentation.</em> |
+| public | <strong>findInClasses(</strong><em>string</em> <strong>$methodName</strong>, <em>list&lt;string&gt;</em> <strong>$classes)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity) \| false</em><br /><em>The first declaration of the method found in the given classes or their ancestors, in order; false when none declares it.</em> |
 
 
 <hr /><a id="class-phpdocsmd-reflections-reflector"></a>
@@ -301,10 +301,10 @@
 | Visibility | Function |
 |:-----------|:---------|
 | public | <strong>__construct(</strong><em>string</em> <strong>$className</strong>, <em>[\PHPDocsMD\Reflections\FunctionFinder](#class-phpdocsmd-reflections-functionfinder) \| null</em> <strong>$functionFinder=null)</strong> : <em>void</em> |
-| public | <strong>getClassEntity()</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> |
+| public | <strong>getClassEntity()</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em><br /><em>Reflect the class into an entity holding its documented methods — public and protected, narrowed by setVisibilityFilter() and setMethodRegex() — with each method's types merged from its declaration and docblock.</em> |
 | public static | <strong>getParamType(</strong><em>[\ReflectionParameter](https://php.net/manual/en/class.reflectionparameter.php)</em> <strong>$refParam)</strong> : <em>string</em><br /><em>Tries to find out if the type of the given parameter. Will return empty string if not possible.</em> |
-| public | <strong>setMethodRegex(</strong><em>string</em> <strong>$methodRegex)</strong> : <em>[\PHPDocsMD\Reflections\Reflector](#class-phpdocsmd-reflections-reflector)</em> |
-| public | <strong>setVisibilityFilter(</strong><em>array</em> <strong>$visibilityFilter)</strong> : <em>[\PHPDocsMD\Reflections\Reflector](#class-phpdocsmd-reflections-reflector)</em> |
+| public | <strong>setMethodRegex(</strong><em>string</em> <strong>$methodRegex)</strong> : <em>[\PHPDocsMD\Reflections\Reflector](#class-phpdocsmd-reflections-reflector)</em><br /><em>Document only methods whose name matches this full regular expression (delimiters included, e.g. "/^get/"); an empty string documents all.</em> |
+| public | <strong>setVisibilityFilter(</strong><em>list&lt;string&gt;</em> <strong>$visibilityFilter)</strong> : <em>[\PHPDocsMD\Reflections\Reflector](#class-phpdocsmd-reflections-reflector)</em><br /><em>Document only methods with one of these visibilities: public, protected, abstract, final. An unknown name is rejected when the class is reflected.</em> |
 | protected | <strong>createFunctionEntity(</strong><em>[\ReflectionMethod](https://php.net/manual/en/class.reflectionmethod.php)</em> <strong>$method</strong>, <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> <strong>$class</strong>, <em>array&lt;string, string&gt;</em> <strong>$useStatements)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity) \| false</em> |
 | protected | <strong>shouldIgnoreFunction(</strong><em>[\PHPDocsMD\DocInfo](#class-phpdocsmd-docinfo)</em> <strong>$info</strong>, <em>[\ReflectionMethod](https://php.net/manual/en/class.reflectionmethod.php)</em> <strong>$method</strong>, <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)</em> <strong>$class)</strong> : <em>bool</em> |
 ###### Examples of Reflector::getParamType()

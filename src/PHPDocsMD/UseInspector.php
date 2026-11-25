@@ -22,6 +22,12 @@ class UseInspector
      */
     private const SKIPPABLE = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
 
+    /**
+     * The classes the file declaring this class imports, keyed by the name the
+     * file writes them under; empty for a class with no file (an internal one).
+     *
+     * @return array<string, string> local name => `\Fully\Qualified` name
+     */
     public function getUseStatements(ReflectionClass $reflectionClass): array
     {
         $classUseStatements = [];
@@ -33,6 +39,12 @@ class UseInspector
         return $classUseStatements;
     }
 
+    /**
+     * The classes a PHP file imports, as getUseStatementsInString() reads them;
+     * empty when the file cannot be read.
+     *
+     * @return array<string, string> local name => `\Fully\Qualified` name
+     */
     public function getUseStatementsInFile(string $filePath): array
     {
         // A file that cannot be read has no imports to report: false becomes "",

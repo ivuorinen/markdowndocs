@@ -29,6 +29,10 @@ class ParamEntity extends CodeEntity
         return $this->hasDefault;
     }
 
+    /**
+     * Records the default as it is to be printed, and that one exists:
+     * hasDefault() is what tells "no default" from a default of "" or "0".
+     */
     public function setDefault(string $default): self
     {
         $this->default = $default;

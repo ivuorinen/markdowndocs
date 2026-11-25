@@ -21,6 +21,10 @@ class ClassEntityFactory
         $this->docInfoExtractor = $docInfoExtractor;
     }
 
+    /**
+     * The class's entity with its kind, parent, interfaces and class docblock
+     * applied; its methods are added afterwards by Reflector.
+     */
     public function create(\ReflectionClass $reflection): ClassEntity
     {
         $class = new ClassEntity();

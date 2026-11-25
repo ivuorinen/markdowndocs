@@ -51,6 +51,12 @@ class Reflector
     private array $visibilityFilter = [];
     private string $methodRegex = '';
 
+    /**
+     * @param string $className the class to reflect, with or without a leading backslash
+     * @param FunctionFinder|null $functionFinder passed by FunctionFinder itself, so the
+     *                                            reflection it starts for a parent
+     *                                            shares its cache
+     */
     public function __construct(string $className, ?FunctionFinder $functionFinder = null)
     {
         $this->className = $className;
@@ -66,7 +72,12 @@ class Reflector
     }
 
     /**
-     * @throws \ReflectionException
+     * Reflect the class into an entity holding its documented methods —
+     * public and protected, narrowed by setVisibilityFilter() and
+     * setMethodRegex() — with each method's types merged from its declaration
+     * and docblock.
+     *
+     * @throws \ReflectionException when the name is no class, interface or trait
      */
     public function getClassEntity(): ClassEntity
     {
@@ -140,6 +151,9 @@ class Reflector
         return array_values(array_merge($publicFunctions, $protectedFunctions));
     }
 
+    /**
+     * @return int-mask-of<ReflectionMethod::IS_*>
+     */
     private function translateVisibilityFilter(string $filter): int
     {
         if (!isset(self::VISIBILITIES[$filter])) {
@@ -598,6 +612,12 @@ class Reflector
         return 'mixed';
     }
 
+    /**
+     * Document only methods with one of these visibilities: public, protected,
+     * abstract, final. An unknown name is rejected when the class is reflected.
+     *
+     * @param list<string> $visibilityFilter
+     */
     public function setVisibilityFilter(array $visibilityFilter): self
     {
         $this->visibilityFilter = $visibilityFilter;
@@ -605,6 +625,13 @@ class Reflector
         return $this;
     }
 
+    /**
+     * Document only methods whose name matches this full regular expression
+     * (delimiters included, e.g. "/^get/"); an empty string documents all.
+     *
+     * @throws \InvalidArgumentException when the pattern does not compile,
+     *                                   with PHP's reason in the message
+     */
     public function setMethodRegex(string $methodRegex): self
     {
         // preg_match() returns false rather than throwing on a malformed pattern,

@@ -17,6 +17,11 @@ class FunctionFinder
     private array $cache = [];
 
     /**
+     * The first declaration of the method found in the given classes or their
+     * ancestors, in order; false when none declares it.
+     *
+     * @param list<string> $classes
+     *
      * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */
@@ -33,6 +38,10 @@ class FunctionFinder
     }
 
     /**
+     * The method as the class, or the nearest ancestor declaring it, documents
+     * it; false when nothing up the chain declares it. Used to resolve
+     * {@inheritDoc}, so the entity carries the declaring class's documentation.
+     *
      * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */

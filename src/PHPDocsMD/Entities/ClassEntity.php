@@ -45,6 +45,10 @@ class ClassEntity extends CodeEntity
         return $this->extends;
     }
 
+    /**
+     * Stored with a leading backslash, the form type cells and section anchors
+     * compare against.
+     */
     public function setExtends(string $extends): self
     {
         $this->extends = Utils::sanitizeClassName($extends);
@@ -52,11 +56,20 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    /**
+     * @return list<string> fully qualified, each with a leading backslash
+     */
     public function getInterfaces(): array
     {
         return $this->interfaces;
     }
 
+    /**
+     * Each name is stored with a leading backslash, the form type cells and
+     * section anchors compare against.
+     *
+     * @param list<string> $implements
+     */
     public function setInterfaces(array $implements): self
     {
         $this->interfaces = [];
@@ -82,6 +95,10 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    /**
+     * Stored with a leading backslash, the form type cells and section anchors
+     * compare against.
+     */
     #[\Override]
     public function setName(string $name): self
     {

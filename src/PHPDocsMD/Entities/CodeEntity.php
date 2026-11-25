@@ -83,6 +83,9 @@ class CodeEntity
         return $this;
     }
 
+    /**
+     * @return list<string> one rendered reference per @see tag
+     */
     public function getSee(): array
     {
         return $this->see;

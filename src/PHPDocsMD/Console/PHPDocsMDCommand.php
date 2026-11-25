@@ -406,6 +406,15 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         );
     }
 
+    /**
+     * The documentable classes under a directory, grouped by namespace and
+     * sorted at both levels so the document does not depend on filesystem order.
+     *
+     * @param array<string, list<string>> $collection what the recursion found so far
+     * @param list<string> $ignores directory names to skip, at any depth
+     *
+     * @return array<string, list<string>> fully qualified class names by namespace
+     */
     private function findClassesInDir(string $dir, array $collection = [], array $ignores = []): array
     {
         $entries = [];

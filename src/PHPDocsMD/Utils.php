@@ -65,6 +65,11 @@ class Utils
         return in_array($type, self::$nativeTypes, true) || str_contains($type, '-');
     }
 
+    /**
+     * The last segment of a class name: "Foo" for "\Acme\NS\Foo". For class
+     * names only — a type expression such as "Collection<Foo>" has no single
+     * base name.
+     */
     public static function getClassBaseName(string $fullClassName): string
     {
         $parts = explode('\\', trim($fullClassName));

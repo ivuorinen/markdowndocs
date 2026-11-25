@@ -168,6 +168,9 @@ class MDTableGenerator implements TableGenerator
         return $markDown;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     #[\Override]
     public function getTable(): string
     {

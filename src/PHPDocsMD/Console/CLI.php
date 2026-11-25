@@ -39,6 +39,10 @@ class CLI extends Application
     }
 
     /**
+     * Register the generate command and run the application; the exit code is
+     * the command's. bin/phpdoc-md calls this with no arguments, which reads
+     * argv and writes to the console.
+     *
      * @param \Symfony\Component\Console\Input\InputInterface|null $input
      * @param \Symfony\Component\Console\Output\OutputInterface|null $output
      *
