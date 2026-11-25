@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PHPDocsMD\Entities;
+namespace PHPDocsMD\Reflections;
 
 use PHPDocsMD\DocInfoExtractor;
+use PHPDocsMD\Entities\ClassEntity;
 
 /**
  * Class capable of creating ClassEntity objects

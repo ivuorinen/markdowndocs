@@ -2,7 +2,6 @@
 
 - [\PHPDocsMD\DocInfo](#class-phpdocsmd-docinfo)
 - [\PHPDocsMD\DocInfoExtractor](#class-phpdocsmd-docinfoextractor)
-- [\PHPDocsMD\FunctionFinder](#class-phpdocsmd-functionfinder)
 - [\PHPDocsMD\MDTableGenerator](#class-phpdocsmd-mdtablegenerator)
 - [\PHPDocsMD\TableGenerator (interface)](#interface-phpdocsmd-tablegenerator)
 - [\PHPDocsMD\UseInspector](#class-phpdocsmd-useinspector)
@@ -10,10 +9,11 @@
 - [\PHPDocsMD\Console\CLI](#class-phpdocsmd-console-cli)
 - [\PHPDocsMD\Console\PHPDocsMDCommand](#class-phpdocsmd-console-phpdocsmdcommand)
 - [\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity)
-- [\PHPDocsMD\Entities\ClassEntityFactory](#class-phpdocsmd-entities-classentityfactory)
 - [\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)
 - [\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)
 - [\PHPDocsMD\Entities\ParamEntity](#class-phpdocsmd-entities-paramentity)
+- [\PHPDocsMD\Reflections\ClassEntityFactory](#class-phpdocsmd-reflections-classentityfactory)
+- [\PHPDocsMD\Reflections\FunctionFinder](#class-phpdocsmd-reflections-functionfinder)
 - [\PHPDocsMD\Reflections\Reflector](#class-phpdocsmd-reflections-reflector)
 
 <hr /><a id="class-phpdocsmd-docinfo"></a>
@@ -47,18 +47,6 @@
 |:-----------|:---------|
 | public | <strong>applyInfoToEntity(</strong><em>[\ReflectionMethod](https://php.net/manual/en/class.reflectionmethod.php)  \| [\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php) </em> <strong>$reflection</strong>, <em>[\PHPDocsMD\DocInfo](#class-phpdocsmd-docinfo) </em> <strong>$docInfo</strong>, <em>[\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity) </em> <strong>$code)</strong> : <em>void</em> |
 | public | <strong>extractInfo(</strong><em>[\ReflectionMethod](https://php.net/manual/en/class.reflectionmethod.php)  \| [\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php) </em> <strong>$reflection)</strong> : <em>[\PHPDocsMD\DocInfo](#class-phpdocsmd-docinfo) </em> |
-
-
-<hr /><a id="class-phpdocsmd-functionfinder"></a>
-
-### Class: \PHPDocsMD\FunctionFinder
-
-> Find a specific function in a class or an array of classes
-
-| Visibility | Function |
-|:-----------|:---------|
-| public | <strong>find(</strong><em>string</em> <strong>$methodName</strong>, <em>string</em> <strong>$className)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)  \| false</em> |
-| public | <strong>findInClasses(</strong><em>string</em> <strong>$methodName</strong>, <em>array</em> <strong>$classes)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)  \| false</em> |
 
 
 <hr /><a id="class-phpdocsmd-mdtablegenerator"></a>
@@ -196,18 +184,6 @@
 
 *This class extends [\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)*
 
-<hr /><a id="class-phpdocsmd-entities-classentityfactory"></a>
-
-### Class: \PHPDocsMD\Entities\ClassEntityFactory
-
-> Class capable of creating ClassEntity objects
-
-| Visibility | Function |
-|:-----------|:---------|
-| public | <strong>__construct(</strong><em>[\PHPDocsMD\DocInfoExtractor](#class-phpdocsmd-docinfoextractor) </em> <strong>$docInfoExtractor)</strong> : <em>void</em> |
-| public | <strong>create(</strong><em>[\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php) </em> <strong>$reflection)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity) </em> |
-
-
 <hr /><a id="class-phpdocsmd-entities-codeentity"></a>
 
 ### Class: \PHPDocsMD\Entities\CodeEntity
@@ -275,6 +251,30 @@
 
 *This class extends [\PHPDocsMD\Entities\CodeEntity](#class-phpdocsmd-entities-codeentity)*
 
+<hr /><a id="class-phpdocsmd-reflections-classentityfactory"></a>
+
+### Class: \PHPDocsMD\Reflections\ClassEntityFactory
+
+> Class capable of creating ClassEntity objects
+
+| Visibility | Function |
+|:-----------|:---------|
+| public | <strong>__construct(</strong><em>[\PHPDocsMD\DocInfoExtractor](#class-phpdocsmd-docinfoextractor) </em> <strong>$docInfoExtractor)</strong> : <em>void</em> |
+| public | <strong>create(</strong><em>[\ReflectionClass](https://php.net/manual/en/class.reflectionclass.php) </em> <strong>$reflection)</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity) </em> |
+
+
+<hr /><a id="class-phpdocsmd-reflections-functionfinder"></a>
+
+### Class: \PHPDocsMD\Reflections\FunctionFinder
+
+> Find a specific function in a class or an array of classes
+
+| Visibility | Function |
+|:-----------|:---------|
+| public | <strong>find(</strong><em>string</em> <strong>$methodName</strong>, <em>string</em> <strong>$className)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)  \| false</em> |
+| public | <strong>findInClasses(</strong><em>string</em> <strong>$methodName</strong>, <em>array</em> <strong>$classes)</strong> : <em>[\PHPDocsMD\Entities\FunctionEntity](#class-phpdocsmd-entities-functionentity)  \| false</em> |
+
+
 <hr /><a id="class-phpdocsmd-reflections-reflector"></a>
 
 ### Class: \PHPDocsMD\Reflections\Reflector
@@ -283,7 +283,7 @@
 
 | Visibility | Function |
 |:-----------|:---------|
-| public | <strong>__construct(</strong><em>string</em> <strong>$className</strong>, <em>[\PHPDocsMD\FunctionFinder](#class-phpdocsmd-functionfinder)  \| null</em> <strong>$functionFinder=null)</strong> : <em>void</em> |
+| public | <strong>__construct(</strong><em>string</em> <strong>$className</strong>, <em>[\PHPDocsMD\Reflections\FunctionFinder](#class-phpdocsmd-reflections-functionfinder)  \| null</em> <strong>$functionFinder=null)</strong> : <em>void</em> |
 | public | <strong>getClassEntity()</strong> : <em>[\PHPDocsMD\Entities\ClassEntity](#class-phpdocsmd-entities-classentity) </em> |
 | public static | <strong>getParamType(</strong><em>[\ReflectionParameter](https://php.net/manual/en/class.reflectionparameter.php) </em> <strong>$refParam)</strong> : <em>string</em><br /><em>Tries to find out if the type of the given parameter. Will return empty string if not possible.</em> |
 | public | <strong>getReturnTypeFromMethod(</strong><em>[\ReflectionMethod](https://php.net/manual/en/class.reflectionmethod.php) </em> <strong>$method</strong>, <em>string</em> <strong>$returnType)</strong> : <em>string</em> |

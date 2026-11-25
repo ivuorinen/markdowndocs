@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PHPDocsMD;
+namespace PHPDocsMD\Reflections;
 
 use PHPDocsMD\Entities\ClassEntity;
 use PHPDocsMD\Entities\FunctionEntity;
-use PHPDocsMD\Reflections\Reflector;
 
 /**
  * Find a specific function in a class or an array of classes
