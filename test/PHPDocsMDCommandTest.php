@@ -545,6 +545,37 @@ class PHPDocsMDCommandTest extends TestCase
     }
 
     /**
+     * --visibility narrows the documented methods to the visibilities it lists.
+     */
+    public function testVisibilityOptionLimitsTheDocumentedMethods(): void
+    {
+        $this->tester->execute([
+            'class'        => 'Acme\\ExampleClass',
+            '--visibility' => 'public',
+        ]);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString('<strong>funcA(', $output);
+        $this->assertStringNotContainsString('<strong>funcC(', $output);
+    }
+
+    /**
+     * The list is comma-separated, and whitespace around an entry is not part
+     * of the visibility name. Left in, it fails the unknown-visibility check.
+     */
+    public function testVisibilityListToleratesSurroundingWhitespace(): void
+    {
+        $this->tester->execute([
+            'class'        => 'Acme\\ExampleClass',
+            '--visibility' => ' protected , public ',
+        ]);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString('<strong>funcA(', $output);
+        $this->assertStringContainsString('<strong>funcC(', $output);
+    }
+
+    /**
      * A relative --bootstrap path is resolved against the working directory,
      * not the include_path or the directory of the executable.
      */
@@ -610,6 +641,38 @@ class PHPDocsMDCommandTest extends TestCase
     }
 
     /**
+     * Each @see form renders as written, a URL becomes a link, and a bare "@see"
+     * names nothing, so it must not leave an empty reference behind. A wrapped
+     * line continues the reference's own description, as a one-line one does.
+     */
+    public function testSeeReferencesRenderUnderTheClassTitle(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/See', '--see' => true]);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString(
+            '> Points readers elsewhere.' . PHP_EOL . PHP_EOL
+            . 'See [The guide](https://example.com/guide)<br />' . PHP_EOL
+            . 'See <https://example.com/plain><br />' . PHP_EOL
+            . 'See \\Acme\\Fixtures\\See\\References::act() for how it acts, which takes a second line to say.<br />'
+            . PHP_EOL
+            . PHP_EOL
+            . '| Visibility',
+            $output
+        );
+    }
+
+    public function testSeeReferencesRenderOnMethods(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/See', '--see' => true]);
+
+        $this->assertStringContainsString(
+            '<em>&nbsp;&nbsp;&nbsp;&nbsp;See: [Method notes](https://example.com/method)</em>',
+            $this->tester->getDisplay()
+        );
+    }
+
+    /**
      * Every @example is kept: a second one used to be glued onto the end of
      * the first without so much as a line break.
      */
@@ -639,6 +702,33 @@ class PHPDocsMDCommandTest extends TestCase
             . 'cannot read "@param array<int $items the items to count": ',
             $this->tester->getErrorOutput()
         );
+    }
+
+    public function testSeeReferencesAreLeftOutWithoutTheOption(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/See']);
+
+        $this->assertStringNotContainsString('https://example.com', $this->tester->getDisplay());
+    }
+
+    public function testIgnoredClassesAreNeverDocumented(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/Tags']);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringNotContainsString('Tags\\Ignored', $output);
+        $this->assertStringContainsString('### Class: \\Acme\\Fixtures\\Tags\\InternalClass', $output);
+        $this->assertStringContainsString('<strong>internalHelper()</strong>', $output);
+    }
+
+    public function testNoInternalLeavesOutInternalClassesAndMethods(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/Tags', '--no-internal' => true]);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringNotContainsString('InternalClass', $output);
+        $this->assertStringNotContainsString('internalHelper', $output);
+        $this->assertStringContainsString('<strong>published()</strong>', $output);
     }
 
     public function testDeprecatedClassTitleIsStruckThrough(): void
@@ -688,6 +778,41 @@ class PHPDocsMDCommandTest extends TestCase
             '<em>[\\SplStack](https://php.net/manual/en/class.splstack.php)[]</em>',
             $output
         );
+    }
+
+    /**
+     * T_CLASS also marks "::class" and anonymous classes. Neither names a type,
+     * so neither may stand in for the declaration that follows, and a file
+     * holding only an anonymous class has nothing to document.
+     */
+    public function testAnonymousClassesAndClassConstantsAreNotDeclarations(): void
+    {
+        $this->tester->execute(['class' => __DIR__ . '/Acme/Fixtures/Anonymous']);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString('### Class: \\Acme\\Fixtures\\Anonymous\\AfterNamelessClasses', $output);
+        $this->assertSame(1, substr_count($output, '### '));
+    }
+
+    /**
+     * A file cut off mid-declaration — an unsaved buffer, a failed write —
+     * declares nothing, and a tree holding nothing else has nothing to document.
+     */
+    public function testATruncatedFileDeclaresNothing(): void
+    {
+        $dir = sys_get_temp_dir() . '/phpdocsmd-truncated-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        file_put_contents($dir . '/Cut.php', "<?php\n\nnamespace Acme\\Cut;\n\nclass");
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('No classes found');
+
+            $this->tester->execute(['class' => $dir]);
+        } finally {
+            unlink($dir . '/Cut.php');
+            rmdir($dir);
+        }
     }
 
     /**
@@ -853,6 +978,36 @@ class PHPDocsMDCommandTest extends TestCase
         $this->tester->execute(
             ['class' => 'Acme\\Fixtures\\Links\\Missing,Acme\\Fixtures\\Links\\Absent'],
             ['capture_stderr_separately' => true]
+        );
+    }
+
+    public function testMethodRegexLimitsTheDocumentedMethods(): void
+    {
+        $this->tester->execute([
+            'class'         => 'Acme\\Fixtures\\Links\\User',
+            '--methodRegex' => '/^makeBar/',
+        ]);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString('<strong>makeBar()</strong>', $output);
+        $this->assertStringContainsString('<strong>makeBarBaz()</strong>', $output);
+        $this->assertStringNotContainsString('makeEither', $output);
+    }
+
+    /**
+     * A class in the global namespace has no namespace to show, so its title
+     * carries the bare name.
+     */
+    public function testGlobalClassTitleCarriesTheBareName(): void
+    {
+        $this->tester->execute([
+            'class'       => 'GlobalScopedFixture',
+            '--bootstrap' => __DIR__ . '/Acme/Fixtures/Global/GlobalScopedFixture.php',
+        ]);
+
+        $this->assertStringContainsString(
+            '### Class: GlobalScopedFixture' . PHP_EOL,
+            $this->tester->getDisplay()
         );
     }
 }

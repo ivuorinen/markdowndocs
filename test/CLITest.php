@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Tests;
 
+use Composer\Autoload\ClassLoader;
+use Composer\InstalledVersions;
 use InvalidArgumentException;
 use PHPDocsMD\Console\CLI;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -38,6 +41,65 @@ class CLITest extends TestCase
         $this->assertNotSame('', $version);
         $this->assertNotSame('UNKNOWN', $version, 'the package should report as installed under test');
         $this->assertMatchesRegularExpression('/\d|dev/', $version);
+    }
+
+    /**
+     * Code loaded without Composer's runtime API — copied into a project by
+     * hand, or bundled without it — has no installed version to report.
+     */
+    #[RunInSeparateProcess]
+    public function testVersionIsUnknownWithoutComposersRuntimeApi(): void
+    {
+        $this->assertFalse(
+            class_exists(InstalledVersions::class, false),
+            'InstalledVersions is already loaded, so its absence cannot be simulated'
+        );
+        $this->detachComposerLoaders(InstalledVersions::class);
+
+        $this->assertSame('UNKNOWN', (new CLI())->getVersion());
+    }
+
+    /**
+     * A fork published under another name is installed, but not as this
+     * package, so there is no version of this package to report.
+     */
+    #[RunInSeparateProcess]
+    public function testVersionIsUnknownWhenComposerDoesNotListThePackage(): void
+    {
+        // With no loader registered, InstalledVersions answers from the data
+        // given to reload() alone instead of re-reading each vendor directory.
+        $this->detachComposerLoaders();
+        InstalledVersions::reload([
+            'root' => [
+                'name'           => 'consumer/app',
+                'pretty_version' => '1.0.0',
+                'version'        => '1.0.0.0',
+                'reference'      => null,
+                'type'           => 'project',
+                'install_path'   => __DIR__,
+                'aliases'        => [],
+                'dev'            => false,
+            ],
+            'versions' => [],
+        ]);
+
+        $this->assertSame('UNKNOWN', (new CLI())->getVersion());
+    }
+
+    /**
+     * Unregister Composer's class loaders and keep autoloading working through
+     * a wrapper that can withhold one class. Only safe in a separate process.
+     */
+    private function detachComposerLoaders(?string $withheld = null): void
+    {
+        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
+            $loader->unregister();
+            spl_autoload_register(static function (string $class) use ($loader, $withheld): void {
+                if ($class !== $withheld) {
+                    $loader->loadClass($class);
+                }
+            });
+        }
     }
 
     /**

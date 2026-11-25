@@ -201,6 +201,76 @@ class UseInspectorTest extends TestCase
     }
 
     /**
+     * A file being edited can lose the semicolon after an import. The import
+     * still ends where the next statement begins; reading on would fold the
+     * class name below into the imported name.
+     */
+    public function testAnImportMissingItsSemicolonEndsAtTheNextStatement(): void
+    {
+        $code = <<<'PHP'
+        <?php
+
+        namespace Acme;
+
+        use Vendor\Thing
+
+        class Consumer
+        {
+        }
+        PHP;
+
+        $this->assertEquals(
+            ['Thing' => '\\Vendor\\Thing'],
+            $this->inspector->getUseStatementsInString($code)
+        );
+    }
+
+    /**
+     * An import cannot contain an operator, so one ends it.
+     */
+    public function testAnOperatorEndsAnImport(): void
+    {
+        $code = <<<'PHP'
+        <?php
+
+        namespace Acme;
+
+        use Vendor\Thing = Other;
+        PHP;
+
+        $this->assertEquals(
+            ['Thing' => '\\Vendor\\Thing'],
+            $this->inspector->getUseStatementsInString($code)
+        );
+    }
+
+    /**
+     * PHP allows a file-level import anywhere at namespace level, including
+     * after a class body has closed. Leaving the body must restore file-level
+     * reading, or every import below the first class is lost.
+     */
+    public function testAnImportAfterAClassBodyIsStillAFileImport(): void
+    {
+        $code = <<<'PHP'
+        <?php
+
+        namespace Acme;
+
+        class First
+        {
+            use SomeTrait;
+        }
+
+        use Vendor\Later;
+        PHP;
+
+        $this->assertEquals(
+            ['Later' => '\\Vendor\\Later'],
+            $this->inspector->getUseStatementsInString($code)
+        );
+    }
+
+    /**
      * "Foo::class" is also T_CLASS and opens no body, so it must not make the
      * next brace look like a class body.
      */

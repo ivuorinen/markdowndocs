@@ -124,21 +124,20 @@ class UseInspector
     }
 
     /**
-     * Text of the nearest preceding token that carries meaning, or '' at the
-     * start of the file.
+     * Text of the nearest preceding token that carries meaning.
+     *
+     * The walk cannot run off the front: token_get_all() always opens with the
+     * open tag or inline HTML, neither of which is skippable, and that first
+     * token is never the T_USE or T_CLASS this is asked about.
      */
     private function previousMeaningfulText(array $tokens, int $index): string
     {
-        for ($i = $index - 1; $i >= 0; $i--) {
-            $token = $tokens[$i];
-            if (is_array($token) && in_array($token[0], self::SKIPPABLE, true)) {
-                continue;
-            }
-
-            return is_array($token) ? $token[1] : $token;
+        $i = $index - 1;
+        while (is_array($tokens[$i]) && in_array($tokens[$i][0], self::SKIPPABLE, true)) {
+            $i--;
         }
 
-        return '';
+        return is_array($tokens[$i]) ? $tokens[$i][1] : $tokens[$i];
     }
 
     /**
@@ -176,8 +175,6 @@ class UseInspector
                     $state['name'] .= '\\';
                     continue;
                 }
-
-                break;
             }
 
             if ($token === '{') {
@@ -194,10 +191,9 @@ class UseInspector
                 continue;
             }
 
-            if ($token === ';') {
-                break;
-            }
-
+            // ";" ends the import. So does any token an import cannot contain:
+            // only a file mid-edit holds one, and reading on would fold the
+            // next statement's names into the imported one.
             break;
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Reflections;
 
+use ErrorException;
 use InvalidArgumentException;
 use PHPDocsMD\DocInfo;
 use PHPDocsMD\DocInfoExtractor;
@@ -69,7 +70,15 @@ class Reflector
      */
     public function getClassEntity(): ClassEntity
     {
-        $classReflection = new ReflectionClass($this->className);
+        $className = $this->className;
+        // ReflectionClass rejects an unknown name with this same exception. The
+        // name reaches here as a plain string — ClassEntity stores parents and
+        // interfaces normalised by Utils::sanitizeClassName() — so checking first
+        // is what proves it names a type before it is reflected.
+        if (!class_exists($className) && !interface_exists($className) && !trait_exists($className)) {
+            throw new \ReflectionException(sprintf('Class "%s" does not exist', $className));
+        }
+        $classReflection = new ReflectionClass($className);
         $classEntity = $this->classEntityFactory->create($classReflection);
 
         $classEntity->setFunctions($this->getClassFunctions($classEntity, $classReflection));
@@ -608,23 +617,22 @@ class Reflector
             // "No error" or "Internal error" depending on the PHP build. The
             // warning carries the only useful text ("Delimiter must not be
             // alphanumeric...") and is what a user needs to fix the argument.
-            $reason = '';
-            set_error_handler(static function (int $errno, string $message) use (&$reason): bool {
-                $reason = $message;
-
-                return true;
+            // Every compile failure raises that warning, so turning it into an
+            // ErrorException is the whole check.
+            set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+                throw new ErrorException($message, 0, $severity, $file, $line);
             });
 
             try {
-                $valid = preg_match($methodRegex, '') !== false;
+                preg_match($methodRegex, '');
+            } catch (ErrorException $e) {
+                throw new InvalidArgumentException(
+                    sprintf('Invalid method regex "%s": %s', $methodRegex, $e->getMessage()),
+                    0,
+                    $e
+                );
             } finally {
                 restore_error_handler();
-            }
-
-            if (!$valid) {
-                throw new InvalidArgumentException(
-                    sprintf('Invalid method regex "%s": %s', $methodRegex, $reason)
-                );
             }
         }
 

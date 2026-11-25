@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Tests;
 
+use ErrorException;
 use InvalidArgumentException;
 use PHPDocsMD\Entities\ClassEntity;
 use PHPDocsMD\Entities\FunctionEntity;
@@ -26,6 +27,18 @@ class ReflectorTest extends TestCase
      * @var \PHPDocsMD\Entities\ClassEntity
      */
     private ClassEntity $class;
+
+    /**
+     * A name that resolves to no class, interface or trait is rejected with a
+     * ReflectionException rather than reflected or skipped.
+     */
+    public function testUnknownClassNameIsRejected(): void
+    {
+        $this->expectException(\ReflectionException::class);
+        $this->expectExceptionMessage('Class "Acme\\No\\Such\\Thing" does not exist');
+
+        (new Reflector('Acme\\No\\Such\\Thing'))->getClassEntity();
+    }
 
     /**
      * @throws \ReflectionException
@@ -332,6 +345,29 @@ class ReflectorTest extends TestCase
         $this->expectExceptionMessage('Invalid method regex "get"');
 
         $reflector->setMethodRegex('get');
+    }
+
+    /**
+     * The compiler's warning is the only text that says what is wrong with the
+     * pattern, so it must reach the user in the message and stay attached as
+     * the cause.
+     */
+    public function testInvalidMethodRegexReportsTheCompilerWarning(): void
+    {
+        $reflector = new Reflector('Acme\\ExampleClass');
+
+        try {
+            $reflector->setMethodRegex('get');
+            $this->fail('An invalid method regex was accepted');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('Delimiter must not be alphanumeric', $e->getMessage());
+
+            $previous = $e->getPrevious();
+            if (!$previous instanceof ErrorException) {
+                $this->fail('The compiler warning is not attached as the cause');
+            }
+            $this->assertSame(E_WARNING, $previous->getSeverity());
+        }
     }
 
     /**
@@ -764,6 +800,21 @@ class ReflectorTest extends TestCase
 
         $this->assertSame('Fits a 12" pipe.', $function->getDescription());
         $this->assertSame('the "inner" diameter', $function->getParams()[0]->getDescription());
+    }
+
+    /**
+     * {@inheritDoc} reaches past a parent that does not declare the method to
+     * the ancestor that does.
+     *
+     * @throws \ReflectionException
+     */
+    public function testInheritDocReachesAGrandparent(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\InheritGrandchild', 'work');
+
+        $this->assertSame('Documented on the parent.', $function->getDescription());
+        $this->assertSame('a number', $function->getParams()[0]->getDescription());
+        $this->assertFalse($function->isAbstract());
     }
 
     /**
