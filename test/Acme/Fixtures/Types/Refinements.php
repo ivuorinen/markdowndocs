@@ -28,6 +28,28 @@ class Refinements
     }
 
     /**
+     * The declaration rules out the documented null.
+     *
+     * @param string|null $value described
+     */
+    public function contradictedParam(string $value): void
+    {
+        unset($value);
+    }
+
+    /**
+     * A template stands in for its bound; the declaration is that bound.
+     *
+     * @template T of object
+     *
+     * @param T $value described
+     */
+    public function templateParam(object $value): void
+    {
+        unset($value);
+    }
+
+    /**
      * @param class-string<Marker> $value described
      */
     public function classStringParam(string $value): void

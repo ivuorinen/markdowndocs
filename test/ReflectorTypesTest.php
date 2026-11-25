@@ -216,6 +216,8 @@ class ReflectorTypesTest extends ReflectorTestCase
         return [
             'a generic array'                    => ['genericArrayParam', "array<int, {$ns}Marker>"],
             'a nullable list'                    => ['nullableListParam', "list<{$ns}Marker> | null"],
+            'a member the declaration rules out' => ['contradictedParam', 'string'],
+            'a template for its declared bound'  => ['templateParam', 'T'],
             'a class string'                     => ['classStringParam', "class-string<{$ns}Marker>"],
             'a non-empty string'                 => ['nonEmptyStringParam', 'non-empty-string'],
             'an integer range'                   => ['integerRangeParam', 'int<1, max>'],

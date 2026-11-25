@@ -43,11 +43,11 @@
 
 | Visibility | Function |
 |:-----------|:---------|
-| public | <strong>__construct(</strong><em>Tags \| array</em> <strong>$data=[])</strong> : <em>void</em> |
+| public | <strong>__construct(</strong><em>Tags</em> <strong>$data=[])</strong> : <em>void</em> |
 | public | <strong>getDeprecationMessage()</strong> : <em>string</em> |
 | public | <strong>getDescription()</strong> : <em>string</em> |
 | public | <strong>getExample()</strong> : <em>string</em> |
-| public | <strong>getParameterInfo(</strong><em>string</em> <strong>$name)</strong> : <em>array</em><br /><em>What the docblock says about one parameter, looked up as "$name"; an empty array when it says nothing. 'type' is absent for a typeless "@param $name ..." and for one whose type could not be read.</em> |
+| public | <strong>getParameterInfo(</strong><em>string</em> <strong>$name)</strong> : <em>ParamInfo</em><br /><em>What the docblock says about one parameter, looked up as "$name"; an empty array when it says nothing. 'type' is absent for a typeless "@param $name ..." and for one whose type could not be read.</em> |
 | public | <strong>getProblems()</strong> : <em>list&lt;string&gt;</em><br /><em>The tags that could not be read, each as "cannot read "<tag>": <reason>".</em> |
 | public | <strong>getReturnType()</strong> : <em>string</em> |
 | public | <strong>getSee()</strong> : <em>list&lt;string&gt;</em> |

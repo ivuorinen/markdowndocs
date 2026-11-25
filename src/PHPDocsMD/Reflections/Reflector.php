@@ -273,17 +273,9 @@ final class Reflector
                 : TypeResolver::print(TypeResolver::union(TypeResolver::members($documented)));
         }
 
-        $members = [];
-        $documentedMembers = $documented === null ? [] : TypeResolver::members($documented);
-        foreach (TypeResolver::members($declared) as $declaredMember) {
-            $refining = array_values(array_filter(
-                $documentedMembers,
-                static fn (TypeNode $member): bool => TypeResolver::refines($member, $declaredMember)
-            ));
-            array_push($members, ...($refining === [] ? [$declaredMember] : $refining));
-        }
-
-        return TypeResolver::print(TypeResolver::union($members));
+        return TypeResolver::print(TypeResolver::union(
+            self::refineDeclared($declared, $documented === null ? [] : TypeResolver::members($documented))
+        ));
     }
 
     /**
@@ -385,9 +377,7 @@ final class Reflector
     }
 
     /**
-     * The docblock's members, then each declared member the docblock does not
-     * already state — exactly, or more precisely: "array<int, Foo>" states
-     * "array", and listing both rendered "array<int, Foo> | array".
+     * The docblock's members, refined into the declaration when there is one.
      *
      * @return list<TypeNode>
      */
@@ -395,25 +385,49 @@ final class Reflector
     {
         $members = $documented === null ? [] : TypeResolver::members($documented);
 
-        foreach ($declared === null ? [] : TypeResolver::members($declared) as $declaredMember) {
-            if (self::isRefinedBy($declaredMember, $members)) {
-                continue;
-            }
+        return $declared === null ? $members : self::refineDeclared($declared, $members);
+    }
 
-            // The same class written two ways: the declaration is resolved by
-            // PHP, so it takes the place of a docblock name resolved elsewhere.
-            $sameClass = self::findSameClass($declaredMember, $members);
-            if ($sameClass === null) {
-                $members[] = $declaredMember;
-            } else {
-                $members = array_map(
-                    static fn (TypeNode $member): TypeNode => $member === $sameClass ? $declaredMember : $member,
-                    $members
-                );
-            }
+    /**
+     * The declared type's members, each replaced by the documented members
+     * that refine it: "array" by "array<int, Foo>". The declaration is what
+     * PHP enforces, so a documented member that refines none of them is left
+     * out — "string|null" on a declared "string" renders "string" — and so is
+     * a class name the docblock resolved differently from the declaration.
+     *
+     * A template or type alias the docblock declares refines whatever it is
+     * paired with: its bound is not written here, and PHP and the analysers
+     * hold it to the declaration, so "@param T $x" on "object $x" is "T".
+     *
+     * @param list<TypeNode> $documented
+     *
+     * @return list<TypeNode>
+     */
+    private static function refineDeclared(TypeNode $declared, array $documented): array
+    {
+        $members = [];
+        foreach (TypeResolver::members($declared) as $declaredMember) {
+            $refining = array_values(array_filter(
+                $documented,
+                static fn (TypeNode $member): bool => self::isDocblockName($member)
+                    || TypeResolver::refines($member, $declaredMember)
+            ));
+            array_push($members, ...($refining === [] ? [$declaredMember] : $refining));
         }
 
         return $members;
+    }
+
+    /**
+     * Whether a resolved member is a template or type alias name: every class
+     * name is fully qualified by now, so a bare name that is no type keyword
+     * is one the docblocks declare.
+     */
+    private static function isDocblockName(TypeNode $member): bool
+    {
+        return $member instanceof IdentifierTypeNode
+            && !str_starts_with($member->name, '\\')
+            && !Utils::isNativeType($member->name);
     }
 
     /**
@@ -428,30 +442,6 @@ final class Reflector
         }
 
         return false;
-    }
-
-    /**
-     * The member naming a class with the same short name as the given class,
-     * if there is one.
-     *
-     * @param list<TypeNode> $members
-     */
-    private static function findSameClass(TypeNode $class, array $members): ?TypeNode
-    {
-        if (!$class instanceof IdentifierTypeNode || !Utils::isClassReference($class->name)) {
-            return null;
-        }
-
-        foreach ($members as $member) {
-            if ($member instanceof IdentifierTypeNode &&
-                Utils::isClassReference($member->name) &&
-                strcasecmp(Utils::getClassBaseName($member->name), Utils::getClassBaseName($class->name)) === 0
-            ) {
-                return $member;
-            }
-        }
-
-        return null;
     }
 
     /**
