@@ -152,11 +152,23 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         }
 
         $classCollection = [];
+        // Listed names that cannot be documented. They were asked for, so they
+        // keep their place in the table of contents — as text, since there is
+        // no section to link to.
+        $unlisted = [];
         if (str_contains($classes, ',')) {
             foreach (explode(',', $classes) as $class) {
-                if ($this->isDocumentable($class)) {
-                    $classCollection[0][] = $class;
+                $class = trim($class);
+                if ($class === '') {
+                    continue;
                 }
+                // Written the way a directory scan and ClassEntity write class
+                // names, so a name listed as text reads like the linked ones.
+                $class = Utils::sanitizeClassName($class);
+                if (!$this->isDocumentable($class, reportMissing: true)) {
+                    $unlisted[$class] = true;
+                }
+                $classCollection[0][] = $class;
             }
         } elseif ($this->isDocumentable($classes)) {
             $classCollection[] = [$classes];
@@ -182,6 +194,11 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
         foreach ($classCollection as $classes) {
             foreach ($classes as $className) {
+                if (isset($unlisted[$className])) {
+                    $tableOfContent[] = '- ' . $className;
+                    continue;
+                }
+
                 $class = $this->getClassEntity($className);
 
                 if ($class->hasIgnoreTag() || ($class->hasInternalTag() && $noInternal)) {
@@ -283,7 +300,9 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
             }
         }
 
-        if (empty($tableOfContent)) {
+        // Listing names is not documenting them: the table of contents may hold
+        // names alone, and with no class documented there is no document.
+        if ($body === []) {
             throw new InvalidArgumentException('No classes found');
         }
 
@@ -428,23 +447,25 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
      * past every remaining class in the tree and produce an empty document. One
      * unloadable class must cost one class, not the whole run.
      */
-    private function isDocumentable(string $className): bool
+    private function isDocumentable(string $className, bool $reportMissing = false): bool
     {
         try {
-            return class_exists($className, true) ||
-                   interface_exists($className) ||
-                   trait_exists($className);
+            $exists = class_exists($className, true) ||
+                      interface_exists($className) ||
+                      trait_exists($className);
         } catch (\Throwable $e) {
-            // OUTPUT_RAW for the same reason as the document writes below: an
-            // exception message may contain angle brackets that Symfony's
-            // formatter would otherwise consume.
-            $this->errorOutput?->writeln(
-                sprintf('phpdoc-md: skipping %s (%s)', $className, $e->getMessage()),
-                OutputInterface::OUTPUT_RAW
-            );
+            $this->warnSkipping($className, $e->getMessage());
 
             return false;
         }
+
+        // A name the user typed deserves a reason; a directory scan only ever
+        // asks about names it read from a declaration.
+        if (!$exists && $reportMissing) {
+            $this->warnSkipping($className, 'no such class, interface or trait');
+        }
+
+        return $exists;
     }
 
     /**
@@ -459,6 +480,21 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         foreach ($problems as $problem) {
             $this->errorOutput?->writeln(sprintf('phpdoc-md: %s: %s', $where, $problem), OutputInterface::OUTPUT_RAW);
         }
+    }
+
+    /**
+     * Report on stderr something the document leaves out — a class, a file —
+     * and why, so an omission is never silent.
+     */
+    private function warnSkipping(string $subject, string $reason): void
+    {
+        // OUTPUT_RAW for the same reason as the document writes below: an
+        // exception message may contain angle brackets that Symfony's
+        // formatter would otherwise consume.
+        $this->errorOutput?->writeln(
+            sprintf('phpdoc-md: skipping %s (%s)', $subject, $reason),
+            OutputInterface::OUTPUT_RAW
+        );
     }
 
     /**

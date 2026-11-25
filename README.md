@@ -90,6 +90,8 @@ class, or if it should process every class in a specified directory search path.
 ```
 
 *Note that any class to be documented must be loadable using the autoloader provided by composer.*
+A name in a comma-separated list that cannot be loaded is reported on stderr and listed in the table of
+contents as plain text, in its place.
 
 ##### Options
 

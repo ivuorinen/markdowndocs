@@ -633,4 +633,94 @@ class PHPDocsMDCommandTest extends TestCase
             $output
         );
     }
+
+    public function testACommaSeparatedListDocumentsEachClass(): void
+    {
+        $this->tester->execute(['class' => 'Acme\\Fixtures\\Links\\Bar,Acme\\Fixtures\\Links\\BarBaz']);
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString(
+            '- [\\Acme\\Fixtures\\Links\\Bar (interface)](#interface-acme-fixtures-links-bar)',
+            $output
+        );
+        $this->assertStringContainsString(
+            '- [\\Acme\\Fixtures\\Links\\BarBaz](#class-acme-fixtures-links-barbaz)',
+            $output
+        );
+    }
+
+    /**
+     * A listed name that is not a class is reported and kept in the table of
+     * contents, in its place, as text: there is no section to link to. The
+     * classes around it are documented as usual.
+     */
+    public function testACommaSeparatedListKeepsAMissingClassAsText(): void
+    {
+        $this->tester->execute(
+            ['class' => 'Acme\\Fixtures\\Links\\Bar,Acme\\Fixtures\\Links\\Missing,Acme\\Fixtures\\Links\\BarBaz'],
+            ['capture_stderr_separately' => true]
+        );
+        $output = $this->tester->getDisplay();
+
+        $this->assertStringContainsString(
+            '- [\\Acme\\Fixtures\\Links\\Bar (interface)](#interface-acme-fixtures-links-bar)' . PHP_EOL
+            . '- \\Acme\\Fixtures\\Links\\Missing' . PHP_EOL
+            . '- [\\Acme\\Fixtures\\Links\\BarBaz](#class-acme-fixtures-links-barbaz)' . PHP_EOL,
+            $output
+        );
+        $this->assertStringContainsString('### Class: \\Acme\\Fixtures\\Links\\BarBaz', $output);
+        $this->assertStringContainsString(
+            'phpdoc-md: skipping \\Acme\\Fixtures\\Links\\Missing',
+            $this->tester->getErrorOutput()
+        );
+    }
+
+    /**
+     * Spaces after the commas, and the empty entries a doubled or a trailing
+     * comma leaves, are list punctuation, not class names.
+     */
+    public function testACommaSeparatedListToleratesSpacesAndEmptyEntries(): void
+    {
+        $this->tester->execute(
+            ['class' => 'Acme\\Fixtures\\Links\\Bar, , Acme\\Fixtures\\Links\\BarBaz,'],
+            ['capture_stderr_separately' => true]
+        );
+
+        $this->assertStringContainsString(
+            '- [\\Acme\\Fixtures\\Links\\Bar (interface)](#interface-acme-fixtures-links-bar)' . PHP_EOL
+            . '- [\\Acme\\Fixtures\\Links\\BarBaz](#class-acme-fixtures-links-barbaz)' . PHP_EOL,
+            $this->tester->getDisplay()
+        );
+        $this->assertSame('', $this->tester->getErrorOutput());
+    }
+
+    /**
+     * Listed classes link to each other the way a scanned directory's do. The
+     * names were kept as typed, without the leading backslash the parent and
+     * interface names carry, so none of them ever matched.
+     */
+    public function testACommaSeparatedListLinksToTheInterfacesItDocuments(): void
+    {
+        $this->tester->execute(['class' => 'Acme\\Fixtures\\Links\\BarBaz,Acme\\Fixtures\\Links\\Bar']);
+
+        $this->assertStringContainsString(
+            '*This class implements [\\Acme\\Fixtures\\Links\\Bar](#interface-acme-fixtures-links-bar)*',
+            $this->tester->getDisplay()
+        );
+    }
+
+    /**
+     * Listing names is not documenting them: with no class found there is no
+     * document to write.
+     */
+    public function testACommaSeparatedListOfMissingClassesDocumentsNothing(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('No classes found');
+
+        $this->tester->execute(
+            ['class' => 'Acme\\Fixtures\\Links\\Missing,Acme\\Fixtures\\Links\\Absent'],
+            ['capture_stderr_separately' => true]
+        );
+    }
 }
