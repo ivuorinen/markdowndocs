@@ -236,6 +236,7 @@ class ReflectorTypesTest extends ReflectorTestCase
             'a member the declaration rules out' => ['contradictedParam', 'string'],
             'a template for its declared bound'  => ['templateParam', 'T'],
             'a template beside a declared null'  => ['nullableTemplateParam', 'T | null'],
+            'a class of a declared object'       => ['classForObjectParam', "{$ns}Marker"],
             'a class string'                     => ['classStringParam', "class-string<{$ns}Marker>"],
             'a non-empty string'                 => ['nonEmptyStringParam', 'non-empty-string'],
             'an integer range'                   => ['integerRangeParam', 'int<1, max>'],
@@ -280,6 +281,7 @@ class ReflectorTypesTest extends ReflectorTestCase
             'a member the declaration rules out'  => ['narrowedReturn', "list<{$ns}Marker>"],
             'a nullable list'                     => ['nullableListReturn', "non-empty-list<{$ns}Marker> | null"],
             '@phpstan-return over the others'     => ['prefixedReturn', "list<{$ns}Marker>"],
+            'a class of a declared object'        => ['classForObjectReturn', "{$ns}Marker"],
         ];
     }
 

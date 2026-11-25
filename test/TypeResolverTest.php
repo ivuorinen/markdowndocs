@@ -234,6 +234,9 @@ class TypeResolverTest extends TestCase
             'a keyword in other case'      => ['INT', 'int', true],
             'a literal in other case'      => ["'GET'", "'get'", false],
             'a shape key in other case'    => ['array{Id: int}', 'array{id: int}', false],
+            'a class of object'            => ['\\Acme\\Foo', 'object', true],
+            'a generic class of object'    => ['\\Acme\\Collection<int>', 'object', true],
+            'a scalar of object'           => ['int', 'object', false],
         ];
     }
 

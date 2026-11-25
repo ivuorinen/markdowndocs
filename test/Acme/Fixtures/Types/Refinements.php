@@ -62,6 +62,22 @@ class Refinements
     }
 
     /**
+     * @param Marker $value described
+     */
+    public function classForObjectParam(object $value): void
+    {
+        unset($value);
+    }
+
+    /**
+     * @return Marker
+     */
+    public function classForObjectReturn(): object
+    {
+        return new Marker();
+    }
+
+    /**
      * @param class-string<Marker> $value described
      */
     public function classStringParam(string $value): void

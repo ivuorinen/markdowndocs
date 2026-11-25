@@ -191,16 +191,19 @@ final class TypeResolver
 
     /**
      * Whether $narrow states $wide, or a narrower case of it: "list<int>" is an
-     * array, "class-string<Foo>" a string, "true" a bool, anything a mixed.
-     * Both types are expected resolved.
+     * array, "class-string<Foo>" a string, "true" a bool, a class an object,
+     * anything a mixed. Both types are expected resolved, so a class type is
+     * one whose base is a fully qualified name.
      */
     public static function refines(TypeNode $narrow, TypeNode $wide): bool
     {
         $wide = self::comparable($wide);
+        $base = self::base($narrow);
 
         return $wide === 'mixed'
             || self::comparable($narrow) === $wide
-            || self::base($narrow) === $wide;
+            || $base === $wide
+            || ($wide === 'object' && str_starts_with($base, '\\'));
     }
 
     /**
