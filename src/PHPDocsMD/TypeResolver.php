@@ -164,8 +164,8 @@ final class TypeResolver
     }
 
     /**
-     * One type made of the given members, each once. Class names compare the
-     * way PHP compares them, without regard to case.
+     * One type made of the given members, each once. Members compare as
+     * comparable() writes them.
      *
      * @param list<TypeNode> $members
      */
@@ -173,7 +173,7 @@ final class TypeResolver
     {
         $unique = [];
         foreach ($members as $member) {
-            $unique[strtolower(self::print($member))] ??= $member;
+            $unique[self::comparable($member)] ??= $member;
         }
         $unique = array_values($unique);
 
@@ -187,11 +187,47 @@ final class TypeResolver
      */
     public static function refines(TypeNode $narrow, TypeNode $wide): bool
     {
-        $wide = strtolower(self::print($wide));
+        $wide = self::comparable($wide);
 
         return $wide === 'mixed'
-            || strtolower(self::print($narrow)) === $wide
+            || self::comparable($narrow) === $wide
             || self::base($narrow) === $wide;
+    }
+
+    /**
+     * A type written for comparison. PHP compares class names and type
+     * keywords without regard to case, so names are lower-cased; everything
+     * else is case-sensitive and kept as printed. Lower-casing the whole
+     * expression made 'GET' and 'get' one literal, and array{Id: int} and
+     * array{id: int} one shape.
+     */
+    private static function comparable(TypeNode $type): string
+    {
+        $tokens = self::lexer()->tokenize(self::print($type));
+        $comparable = '';
+        foreach ($tokens as $index => [$value, $kind]) {
+            $comparable .= $kind === Lexer::TOKEN_IDENTIFIER && !self::isCaseSensitiveName($tokens, $index)
+                ? strtolower($value)
+                : $value;
+        }
+
+        return $comparable;
+    }
+
+    /**
+     * Whether the name token is a shape key — followed by ":" or "?:" in the
+     * printed type — or a class constant's name, after "::". Both are
+     * case-sensitive in PHP.
+     *
+     * @param list<array{string, int, int}> $tokens
+     */
+    private static function isCaseSensitiveName(array $tokens, int $index): bool
+    {
+        $next = $tokens[$index + 1][1] ?? null;
+
+        return $next === Lexer::TOKEN_COLON
+            || ($next === Lexer::TOKEN_NULLABLE && ($tokens[$index + 2][1] ?? null) === Lexer::TOKEN_COLON)
+            || ($tokens[$index - 1][1] ?? null) === Lexer::TOKEN_DOUBLE_COLON;
     }
 
     /**
@@ -220,11 +256,11 @@ final class TypeResolver
                 $type->constExpr instanceof ConstExprStringNode => 'string',
                 $type->constExpr instanceof ConstExprIntegerNode => 'int',
                 $type->constExpr instanceof ConstExprFloatNode => 'float',
-                default => strtolower(self::print($type)),
+                default => self::comparable($type),
             };
         }
 
-        $name = strtolower(self::print($type));
+        $name = self::comparable($type);
         if (isset(self::REFINED_NAMES[$name])) {
             return self::REFINED_NAMES[$name];
         }

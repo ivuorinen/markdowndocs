@@ -155,6 +155,24 @@ class TypeResolverTest extends TestCase
     }
 
     /**
+     * Only names are compared without regard to case. A string literal, a
+     * shape key and a class constant's name are case-sensitive, so members
+     * that differ in one of them are different types.
+     */
+    public function testAUnionKeepsMembersThatDifferInCaseSensitiveParts(): void
+    {
+        $type = TypeResolver::parse(
+            "'GET'|'get'|array{Id: int}|array{id: int}|array{Id?: INT}|\\Acme\\Foo::BAR|\\acme\\foo::bar|NULL|null"
+        );
+
+        $this->assertSame(
+            "'GET' | 'get' | array{Id: int} | array{id: int} | array{Id?: INT}"
+                . ' | \\Acme\\Foo::BAR | \\acme\\foo::bar | NULL',
+            TypeResolver::print(TypeResolver::union(TypeResolver::members($type)))
+        );
+    }
+
+    /**
      * @return array<string, array{string, string, bool}>
      */
     public static function refinements(): array
@@ -188,6 +206,9 @@ class TypeResolverTest extends TestCase
             'an array of iterable'         => ['array<int>', 'iterable', false],
             'a constant of its class'      => ['\\Acme\\Foo::BAR', '\\Acme\\Foo', false],
             'a key of array'               => ['array-key', 'array', false],
+            'a keyword in other case'      => ['INT', 'int', true],
+            'a literal in other case'      => ["'GET'", "'get'", false],
+            'a shape key in other case'    => ['array{Id: int}', 'array{id: int}', false],
         ];
     }
 
