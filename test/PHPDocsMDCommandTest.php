@@ -545,6 +545,30 @@ class PHPDocsMDCommandTest extends TestCase
     }
 
     /**
+     * A relative --bootstrap path is resolved against the working directory,
+     * not the include_path or the directory of the executable.
+     */
+    public function testRelativeBootstrapIsResolvedAgainstTheWorkingDirectory(): void
+    {
+        $cwd = getcwd();
+        $this->assertIsString($cwd);
+        chdir(__DIR__);
+        try {
+            $this->tester->execute([
+                'class'       => 'Acme\\Fixtures\\Bootstrap\\OnlyViaBootstrap',
+                '--bootstrap' => 'Acme/Fixtures/Bootstrap/bootstrap.php',
+            ]);
+        } finally {
+            chdir($cwd);
+        }
+
+        $this->assertStringContainsString(
+            '### Class: \\Acme\\Fixtures\\Bootstrap\\OnlyViaBootstrap',
+            $this->tester->getDisplay()
+        );
+    }
+
+    /**
      * A parameter typed with a class PHP itself ships links to its php.net page.
      */
     public function testNativeClassParameterLinksToTheManual(): void

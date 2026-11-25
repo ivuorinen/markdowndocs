@@ -148,7 +148,11 @@ class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         $requestingOneClass = false;
 
         if ($bootstrap) {
-            require_once str_starts_with($bootstrap, '/') ? $bootstrap : getcwd() . '/' . $bootstrap;
+            // A "./" prefix resolves against the working directory and skips the
+            // include_path, which is what prefixing getcwd() did — but getcwd()
+            // returns false once that directory is deleted, and false
+            // concatenates to "", resolving the file against the filesystem root.
+            require_once str_starts_with($bootstrap, '/') ? $bootstrap : './' . $bootstrap;
         }
 
         $classCollection = [];
