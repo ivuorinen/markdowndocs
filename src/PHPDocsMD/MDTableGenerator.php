@@ -77,6 +77,16 @@ class MDTableGenerator implements TableGenerator
     }
 
     /**
+     * A type is code, not markup. "list<Clause>" read as an HTML tag, so the
+     * cell said just "list". A description, unlike a type, is the author's
+     * markdown and keeps its markup.
+     */
+    private static function escapeType(string $type): string
+    {
+        return self::escapeCell(htmlspecialchars($type, ENT_NOQUOTES));
+    }
+
+    /**
      * Toggle whether methods being abstract (or part of an interface)
      * should be declared as abstract in the table
      */
@@ -106,7 +116,7 @@ class MDTableGenerator implements TableGenerator
         if ($func->hasParams()) {
             $params = [];
             foreach ($func->getParams() as $param) {
-                $paramStr = '<em>' . self::escapeCell($param->getType()) . '</em> <strong>' .
+                $paramStr = '<em>' . self::escapeType($param->getType()) . '</em> <strong>' .
                     self::escapeCell($param->getName());
                 if ($param->hasDefault()) {
                     $paramStr .= '=' . self::escapeCell($param->getDefault());
@@ -120,7 +130,7 @@ class MDTableGenerator implements TableGenerator
             $str .= '</strong>' . implode(', ', $params) . '<strong>';
         }
 
-        $str .= ')</strong> : <em>' . self::escapeCell($func->getReturnType()) . '</em>';
+        $str .= ')</strong> : <em>' . self::escapeType($func->getReturnType()) . '</em>';
 
         if ($func->isDeprecated()) {
             $message = self::escapeCell($func->getDeprecationMessage());

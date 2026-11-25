@@ -191,6 +191,33 @@ class MDTableGeneratorTest extends TestCase
         self::assertStringNotContainsString('DEPRECATED - ', $row);
     }
 
+    /**
+     * A type is code, not markup. "list<Clause>" read as an HTML tag, so the
+     * rendered cell said just "list". A description is the author's markdown
+     * and keeps its markup.
+     */
+    public function testTypesAreEscapedButDescriptionsAreNot(): void
+    {
+        $param = new ParamEntity();
+        $param->setName('$both');
+        $param->setType('\\A & \\B');
+
+        $func = new FunctionEntity();
+        $func->setName('items');
+        $func->setParams([$param]);
+        $func->setReturnType('list<\\Clause>');
+        $func->setDescription('Returns <code>Clause</code> objects.');
+
+        $tbl = new MDTableGenerator();
+        $tbl->openTable();
+
+        self::assertSame(
+            '| public | <strong>items(</strong><em>\\A &amp; \\B</em> <strong>$both)</strong> : '
+            . '<em>list&lt;\\Clause&gt;</em><br /><em>Returns <code>Clause</code> objects.</em> |',
+            $tbl->addFunc($func)
+        );
+    }
+
     public static function exampleComments(): array
     {
         return [
