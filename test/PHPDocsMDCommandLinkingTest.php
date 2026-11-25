@@ -297,6 +297,22 @@ class PHPDocsMDCommandLinkingTest extends CommandTestCase
     }
 
     /**
+     * A type written with a class alias links to the section of the class the
+     * alias names. The document has a section only under the class's own name.
+     */
+    public function testAClassAliasLinksToTheSectionOfItsClass(): void
+    {
+        $this->tester->execute([
+            'class' => 'Acme\\Fixtures\\AliasLinks\\TakesAlias,Acme\\Fixtures\\AliasLinks\\TargetAlias',
+        ]);
+
+        $this->assertStringContainsString(
+            ': <em>[\\Acme\\Fixtures\\AliasLinks\\TargetAlias](#class-acme-fixtures-aliaslinks-target)</em>',
+            $this->tester->getDisplay()
+        );
+    }
+
+    /**
      * An example is code as its author wrote it. Markup in it that matches a
      * type cell or an inheritance line is still part of the code, so it gets
      * no links, at class or method level.

@@ -392,8 +392,9 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
     /**
      * Turn every class name in the document's type cells and inheritance lines
-     * into a link: to its section when the document has one, to the PHP manual
-     * when PHP ships the class. A name links wherever it sits in a type — a
+     * into a link: to its section when the document has one — for a class
+     * alias, the section of the class it names — and to the PHP manual when
+     * PHP ships the class. A name links wherever it sits in a type — a
      * union member, a generic's parameter, a shape's value, a callable's
      * signature.
      *
@@ -464,7 +465,7 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
         return preg_replace_callback(
             '/(?<![\w\\\\])(?:\\\\[A-Za-z_\x80-\xff][\w\x80-\xff]*)+/',
             static function (array $name) use ($anchors): string {
-                $url = $anchors[strtolower($name[0])] ?? self::manualPage($name[0]);
+                $url = $anchors[strtolower($name[0])] ?? self::loadedClassUrl($name[0], $anchors);
 
                 return $url === null ? $name[0] : sprintf('[%s](%s)', $name[0], $url);
             },
@@ -473,12 +474,21 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
     }
 
     /**
-     * The PHP manual page of a class, interface or enum PHP ships, or null
-     * for anything else. The page name is the lower-cased name with each
-     * namespace separator a hyphen — Random\Randomizer is
-     * "class.random-randomizer" — and enums are filed as "enum.", not "class.".
+     * Where a name links when the document has no section under it: for a
+     * class alias, the section of the class it names — the document writes
+     * sections only under a class's own name — and for a class, interface or
+     * enum PHP ships, its PHP manual page. Null for anything else.
+     *
+     * Only loaded classes are reflected. Autoloading here would run a file for
+     * every name in every type, so a name nothing loaded stays plain text.
+     *
+     * The manual page name is the lower-cased name with each namespace
+     * separator a hyphen — Random\Randomizer is "class.random-randomizer" —
+     * and enums are filed as "enum.", not "class.".
+     *
+     * @param array<string, string> $anchors section anchors by lower-cased class name
      */
-    private static function manualPage(string $className): ?string
+    private static function loadedClassUrl(string $className, array $anchors): ?string
     {
         if (!class_exists($className, false) && !interface_exists($className, false)) {
             return null;
@@ -486,7 +496,7 @@ final class PHPDocsMDCommand extends \Symfony\Component\Console\Command\Command
 
         $class = new ReflectionClass($className);
         if (!$class->isInternal()) {
-            return null;
+            return $anchors[strtolower('\\' . $class->getName())] ?? null;
         }
 
         return sprintf(
