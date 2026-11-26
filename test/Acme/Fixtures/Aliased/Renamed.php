@@ -10,6 +10,9 @@ require_once __DIR__ . '/Original.php';
 // job is to keep the old name resolvable. Reflection reports the *original*
 // name for it, so scanning the directory used to document Original twice, under
 // one anchor id.
+//
+// The old name is written as a string below: this file declares it rather than
+// using it, and "Renamed::class" would be a reference to the deprecated class.
 if (false) {
     /**
      * @deprecated use Original instead.
@@ -19,4 +22,4 @@ if (false) {
     }
 }
 
-class_alias(Original::class, Renamed::class);
+class_alias(Original::class, 'Acme\Fixtures\Aliased\Renamed');

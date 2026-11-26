@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-namespace PHPDocsMD\Entities;
+namespace PHPDocsMD\Reflections;
 
 use PHPDocsMD\DocInfoExtractor;
+use PHPDocsMD\Entities\ClassEntity;
 
 /**
  * Class capable of creating ClassEntity objects
  *
  * @package PHPDocsMD
  */
-class ClassEntityFactory
+final class ClassEntityFactory
 {
     private DocInfoExtractor $docInfoExtractor;
 
@@ -20,6 +21,10 @@ class ClassEntityFactory
         $this->docInfoExtractor = $docInfoExtractor;
     }
 
+    /**
+     * The class's entity with its kind, parent, interfaces and class docblock
+     * applied; its methods are added afterwards by Reflector.
+     */
     public function create(\ReflectionClass $reflection): ClassEntity
     {
         $class = new ClassEntity();

@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Reflections;
 
+use ErrorException;
 use InvalidArgumentException;
 use PHPDocsMD\DocInfo;
 use PHPDocsMD\DocInfoExtractor;
 use PHPDocsMD\Entities\ClassEntity;
-use PHPDocsMD\Entities\ClassEntityFactory;
 use PHPDocsMD\Entities\FunctionEntity;
 use PHPDocsMD\Entities\ParamEntity;
-use PHPDocsMD\FunctionFinder;
+use PHPDocsMD\TypeResolver;
 use PHPDocsMD\UseInspector;
 use PHPDocsMD\Utils;
+use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\IntersectionTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\TypeNode;
+use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
 use ReflectionClass;
 use ReflectionIntersectionType;
 use ReflectionMethod;
@@ -26,11 +30,13 @@ use function count;
 /**
  * Class that can compute ClassEntity objects out of real classes
  *
+ * @psalm-import-type ParamInfo from DocInfo
+ *
  * @package PHPDocsMD
  */
-class Reflector
+final class Reflector
 {
-    private const VISIBILITIES = [
+    private const array VISIBILITIES = [
         'public' => ReflectionMethod::IS_PUBLIC,
         'protected' => ReflectionMethod::IS_PROTECTED,
         'abstract' => ReflectionMethod::IS_ABSTRACT,
@@ -42,9 +48,16 @@ class Reflector
     private DocInfoExtractor $docInfoExtractor;
     private ClassEntityFactory $classEntityFactory;
     private UseInspector $useInspector;
+    /** @var list<string> */
     private array $visibilityFilter = [];
     private string $methodRegex = '';
 
+    /**
+     * @param string $className the class to reflect, with or without a leading backslash
+     * @param FunctionFinder|null $functionFinder passed by FunctionFinder itself, so the
+     *                                            reflection it starts for a parent
+     *                                            shares its cache
+     */
     public function __construct(string $className, ?FunctionFinder $functionFinder = null)
     {
         $this->className = $className;
@@ -60,11 +73,24 @@ class Reflector
     }
 
     /**
-     * @throws \ReflectionException
+     * Reflect the class into an entity holding its documented methods —
+     * public and protected, narrowed by setVisibilityFilter() and
+     * setMethodRegex() — with each method's types merged from its declaration
+     * and docblock.
+     *
+     * @throws \ReflectionException when the name is no class, interface or trait
      */
     public function getClassEntity(): ClassEntity
     {
-        $classReflection = new ReflectionClass($this->className);
+        $className = $this->className;
+        // ReflectionClass rejects an unknown name with this same exception. The
+        // name reaches here as a plain string — ClassEntity stores parents and
+        // interfaces normalised by Utils::sanitizeClassName() — so checking first
+        // is what proves it names a type before it is reflected.
+        if (!class_exists($className) && !interface_exists($className) && !trait_exists($className)) {
+            throw new \ReflectionException(sprintf('Class "%s" does not exist', $className));
+        }
+        $classReflection = new ReflectionClass($className);
         $classEntity = $this->classEntityFactory->create($classReflection);
 
         $classEntity->setFunctions($this->getClassFunctions($classEntity, $classReflection));
@@ -73,6 +99,7 @@ class Reflector
     }
 
     /**
+     * @return list<FunctionEntity>
      * @throws \ReflectionException
      */
     private function getClassFunctions(
@@ -95,10 +122,11 @@ class Reflector
         }
 
         if ($this->methodRegex !== '') {
+            $methodRegex = $this->methodRegex;
             $methodReflections = array_filter(
                 $methodReflections,
                 fn (ReflectionMethod $reflectionMethod) => preg_match(
-                    $this->methodRegex,
+                    $methodRegex,
                     $reflectionMethod->name
                 )
             );
@@ -126,6 +154,9 @@ class Reflector
         return array_values(array_merge($publicFunctions, $protectedFunctions));
     }
 
+    /**
+     * @return int-mask-of<ReflectionMethod::IS_*>
+     */
     private function translateVisibilityFilter(string $filter): int
     {
         if (!isset(self::VISIBILITIES[$filter])) {
@@ -142,6 +173,8 @@ class Reflector
     }
 
     /**
+     * @param array<string, string> $useStatements the declaring file's imports
+     *
      * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */
@@ -151,7 +184,7 @@ class Reflector
         array $useStatements
     ): FunctionEntity|false {
         $func = new FunctionEntity();
-        $docInfo = $this->docInfoExtractor->extractInfo($method);
+        $docInfo = $this->docInfoExtractor->extractInfo($method, $useStatements);
         $this->docInfoExtractor->applyInfoToEntity($method, $docInfo, $func);
 
         if ($docInfo->shouldInheritDoc()) {
@@ -167,16 +200,13 @@ class Reflector
             return false;
         }
 
-        $returnType = $this->getReturnType($docInfo, $method, $func, $useStatements);
-
         $func
-            ->setReturnType($returnType)
+            ->setReturnType($this->getReturnType($docInfo, $method, $func))
             ->setParams($this->getParams($method, $docInfo))
             ->setIsStatic($method->isStatic())
             ->setVisibility($method->isPublic() ? 'public' : 'protected')
             ->setAbstract($method->isAbstract())
-            ->setClass($class->getName())
-            ->setIsReturningNativeClass(Utils::isNativeClassReference($returnType));
+            ->setClass($class->getName());
 
         return $func;
     }
@@ -225,44 +255,35 @@ class Reflector
                !$class->isSame($method->getDeclaringClass()->getName());
     }
 
-    private function getReturnType(
-        DocInfo $docInfo,
-        ReflectionMethod $method,
-        FunctionEntity $func,
-        array $useStatements
-    ): string {
-        $returnType = $docInfo->getReturnType();
+    /**
+     * The declaration is authoritative — it is what the engine enforces — and
+     * the docblock narrows it: "@return list<Foo>" refines ": array". A
+     * docblock member that refines no declared member is left out, so
+     * "@return void" cannot hide a declared "string". The docblock's type is
+     * already resolved, against the imports, by DocInfoExtractor.
+     */
+    private function getReturnType(DocInfo $docInfo, ReflectionMethod $method, FunctionEntity $func): string
+    {
+        $documented = self::documentedType($docInfo->getReturnType());
+        $declared = self::reflectionTypeNode($method->getReturnType(), $method->class);
 
-        if (in_array($returnType, ['self', 'static', '$this'], true)) {
-            $returnType = Utils::sanitizeClassName($method->getDeclaringClass()->getName());
+        if ($declared === null) {
+            return $documented === null
+                ? $this->guessReturnTypeFromFuncName($func->getName())
+                : TypeResolver::print(TypeResolver::union(TypeResolver::members($documented)));
         }
 
-        // $func->getReturnType() is still FunctionEntity's initialiser, the literal
-        // 'void', so comparing against it only ever excluded a docblock that says
-        // "@return void" — the one case where discarding the declared type states
-        // the opposite of the truth. The declaration is authoritative, and
-        // getReturnTypeFromMethod() falls back to the docblock when it is empty.
-        if ($method->hasReturnType()) {
-            $declared = $this->getReturnTypeFromMethod($method, $returnType);
-            // "array" against "@return \Foo[]": the docblock is the more specific
-            // of the two, so keep it — createParameterEntity() already carves the
-            // same case out, and without this, declaring ": array" *loses* the
-            // element type that the identical undeclared method keeps.
-            if (!($declared === 'array' && str_ends_with($returnType, '[]'))) {
-                $returnType = $declared;
-            }
-        }
+        return TypeResolver::print(TypeResolver::union(
+            self::refineDeclared($declared, $documented === null ? [] : TypeResolver::members($documented))
+        ));
+    }
 
-        if (empty($returnType)) {
-            $returnType = $this->guessReturnTypeFromFuncName($func->getName());
-        } elseif (Utils::isClassReference($returnType) && !$this->classExists($returnType)) {
-            $returnType = $this->getReturnTypesArray($returnType, $useStatements);
-        }
-
-        return Utils::sanitizeDeclaration(
-            $returnType,
-            $method->getDeclaringClass()->getNamespaceName()
-        );
+    /**
+     * A type DocInfoExtractor rendered, read back; null when there is none.
+     */
+    private static function documentedType(string $type): ?TypeNode
+    {
+        return $type === '' ? null : TypeResolver::parse($type);
     }
 
     private function guessReturnTypeFromFuncName(string $name): string
@@ -283,15 +304,9 @@ class Reflector
         return 'void';
     }
 
-    private function classExists(string $classRef): bool
-    {
-        // An empty reference reaches the autoloader as "" and makes Composer's
-        // ClassLoader warn on an uninitialized string offset.
-        $classRef = trim($classRef, '[]\\ ');
-
-        return $classRef !== '' && class_exists($classRef);
-    }
-
+    /**
+     * @return list<ParamEntity>
+     */
     private function getParams(ReflectionMethod $method, DocInfo $docInfo): array
     {
         $params = [];
@@ -307,130 +322,202 @@ class Reflector
     }
 
     /**
+     * @param ParamInfo $docs
+     *
      * @todo Turn this into a class "FunctionEntityFactory"
      */
     private function createParameterEntity(ReflectionParameter $reflection, array $docs): ParamEntity
     {
-        $def = false;
-        $hasDefault = $reflection->isDefaultValueAvailable();
-        $type = 'mixed';
-        $declaredType = self::getParamType($reflection);
-        if (!isset($docs['type'])) {
-            $docs['type'] = '';
-        }
+        $declared = self::reflectionTypeNode(
+            $reflection->getType(),
+            $reflection->getDeclaringClass()?->getName() ?? ''
+        );
+        $members = self::mergeParameterTypes(self::documentedType($docs['type'] ?? ''), $declared);
 
-        if ($declaredType && $declaredType !== $docs['type'] &&
-            !($declaredType === 'array' && str_ends_with($docs['type'], '[]'))
-        ) {
-            if ($docs['type'] === '') {
-                $docs['type'] = $declaredType;
-            } elseif (Utils::getClassBaseName($docs['type']) === Utils::getClassBaseName($declaredType)) {
-                // Same class written two ways — the declared type is already resolved.
-                $docs['type'] = $declaredType;
-            } else {
-                $docs['type'] = self::mergeTypeDeclarations($docs['type'], $declaredType);
-            }
-        }
+        $param = new ParamEntity();
+        $param->setDescription($docs['description'] ?? '');
 
-        if ($hasDefault) {
-            $def = $reflection->getDefaultValue();
-            $type = $this->getTypeFromVal($def);
-            if (is_string($def)) {
-                $def = "`'$def'`";
-            } elseif (is_bool($def)) {
-                $def = $def ? 'true' : 'false';
-            } elseif ($def === null) {
-                $def = 'null';
-            } elseif (is_array($def)) {
-                $def = '[]';
-            } else {
-                // int, float — var_export keeps 0 and 0.0 visible
-                $def = var_export($def, true);
+        if ($reflection->isDefaultValueAvailable()) {
+            // A default is a constant expression: a scalar, an array, null, or
+            // an object from a `new` initializer or an enum case.
+            /** @var scalar|array<array-key, mixed>|object|null $default */
+            $default = $reflection->getDefaultValue();
+            $param->setDefault(self::formatDefault($reflection, $default));
+
+            // With nothing declared, the default is the other evidence of what
+            // the parameter accepts: "@param Foo $x = 'none'" takes a string as
+            // well. A declared type already admits its default — PHP refuses one
+            // it does not — and a "mixed" default is refined by any type.
+            $valueType = new IdentifierTypeNode($this->getTypeFromVal($default));
+            if ($members === []) {
+                $members = [$valueType];
+            } elseif ($declared === null && !self::isRefinedBy($valueType, $members)) {
+                array_unshift($members, $valueType);
             }
         }
 
         // "..." and "&" are separate reflection flags and getName() returns the
         // bare name, so without them the rendered signature is not the signature:
         // "f(...$a)" was documented as "f($a)", and "f(array &$out)" as one that
-        // does not modify its argument.
-        $varName = match (true) {
+        // does not modify its argument. Reflection, not the docblock, names the
+        // parameter: the docblock may spell it without the marker.
+        $param->setName(match (true) {
             $reflection->isVariadic() => '...$',
             $reflection->isPassedByReference() => '&$',
             default => '$',
-        } . $reflection->getName();
+        } . $reflection->getName());
 
-        // $docs always carries at least the 'type' key set above, so the
-        // "no docblock" arm that used to sit here could never run; an
-        // undocumented parameter takes the same path and picks up its inferred
-        // type from the elseif below.
-        $docs['default'] = $def;
-        if ($type === 'mixed' && $def === 'null' && str_starts_with($docs['type'], '\\')) {
-            $type = false;
-        }
-
-        // $hasDefault, not $def: "a default exists" is what this asks, and $def is
-        // by now a formatted string — var_export(0) is "0", which is falsy. The
-        // two agree today only because getTypeFromVal() reports int as 'mixed'
-        // and the 'mixed' arm below prepends nothing; give it an is_int() branch
-        // and the truthiness test would start dropping the merge for 0.
-        if ($type && $hasDefault &&
-            !empty($docs['type']) &&
-            $docs['type'] !== $type &&
-            !str_contains($docs['type'], '|')
-        ) {
-            if (substr($docs['type'], (int)strpos($docs['type'], '\\')) ===
-                substr($declaredType, (int)strpos($declaredType, '\\'))
-            ) {
-                $docs['type'] = $declaredType;
-            } else {
-                $docs['type'] = ($type === 'mixed' ? '' : $type . '|') . $docs['type'];
-            }
-        } elseif ($type && empty($docs['type'])) {
-            $docs['type'] = $type;
-        }
-
-        $param = new ParamEntity();
-        $param->setDescription($docs['description'] ?? '');
-        // Reflection, not the docblock: the docblock may spell the name without
-        // the marker the signature carries.
-        $param->setName($varName);
-        if ($hasDefault) {
-            $param->setDefault((string)$def);
-        }
-        // Pipes used to be rewritten as slashes because an unescaped pipe broke
-        // out of its markdown cell. MDTableGenerator::escapeCell() handles that
-        // now, so union members can keep the separator PHP actually uses.
+        // MDTableGenerator escapes the separators for its cells, so union members
+        // keep the separator PHP actually uses.
         $param->setType(
-            empty($docs['type'])
-                ? 'mixed'
-                : (string)preg_replace('/\s*\|\s*/', ' | ', str_replace('\\\\', '\\', $docs['type']))
+            $members === [] ? 'mixed' : TypeResolver::print(TypeResolver::union($members))
         );
 
         return $param;
     }
 
     /**
-     * Union members from the given declarations, in order, without repeats.
+     * The docblock's members, refined into the declaration when there is one.
      *
-     * The two producers of a type declaration here do not agree on spacing —
-     * Utils::sanitizeDeclaration() joins with " | ", formatReflectionType() with
-     * "|" — so members are compared trimmed and case-insensitively. Comparing
-     * the declarations as whole strings made "int | string" and "int|string"
-     * read as disjoint and concatenated them into "int | string | int | string".
+     * @return list<TypeNode>
      */
-    private static function mergeTypeDeclarations(string ...$declarations): string
+    private static function mergeParameterTypes(?TypeNode $documented, ?TypeNode $declared): array
+    {
+        $members = $documented === null ? [] : TypeResolver::members($documented);
+
+        return $declared === null ? $members : self::refineDeclared($declared, $members);
+    }
+
+    /**
+     * The declared type's members, each replaced by the documented members
+     * that refine it: "array" by "array<int, Foo>". The declaration is what
+     * PHP enforces, so a documented member that refines none of them is left
+     * out — "string|null" on a declared "string" renders "string" — and so is
+     * a class name the docblock resolved differently from the declaration.
+     *
+     * A template or type alias the docblock declares refines whatever it is
+     * paired with but null: its bound is not written here, and PHP and the
+     * analysers hold it to the declaration, so "@param T $x" on "object $x"
+     * is "T". On "?object $x" it is "T | null" — the declaration accepts null,
+     * and a name standing in for an object type does not say so.
+     *
+     * @param list<TypeNode> $documented
+     *
+     * @return list<TypeNode>
+     */
+    private static function refineDeclared(TypeNode $declared, array $documented): array
     {
         $members = [];
-        foreach ($declarations as $declaration) {
-            foreach (explode('|', $declaration) as $member) {
-                $member = trim($member);
-                if ($member !== '') {
-                    $members[strtolower($member)] = $member;
-                }
+        foreach (TypeResolver::members($declared) as $declaredMember) {
+            $refining = array_values(array_filter(
+                $documented,
+                static fn (TypeNode $member): bool => (self::isDocblockName($member) && !self::isNull($declaredMember))
+                    || TypeResolver::refines($member, $declaredMember)
+            ));
+            array_push($members, ...($refining === [] ? [$declaredMember] : $refining));
+        }
+
+        return $members;
+    }
+
+    /**
+     * Whether a resolved member is a template or type alias name: every class
+     * name is fully qualified by now, so a bare name that is no type keyword
+     * is one the docblocks declare.
+     */
+    private static function isDocblockName(TypeNode $member): bool
+    {
+        return $member instanceof IdentifierTypeNode
+            && !str_starts_with($member->name, '\\')
+            && !Utils::isNativeType($member->name);
+    }
+
+    /**
+     * Whether a member is the null of a nullable declaration.
+     */
+    private static function isNull(TypeNode $member): bool
+    {
+        return $member instanceof IdentifierTypeNode && strtolower($member->name) === 'null';
+    }
+
+    /**
+     * @param list<TypeNode> $members
+     */
+    private static function isRefinedBy(TypeNode $type, array $members): bool
+    {
+        foreach ($members as $member) {
+            if (TypeResolver::refines($member, $type)) {
+                return true;
             }
         }
 
-        return implode('|', $members);
+        return false;
+    }
+
+    /**
+     * A default written the way the signature declares it, not as the value it
+     * evaluates to: rendering the value printed 2 for SORT_STRING, [] for
+     * every array and a var_export() dump for an object.
+     */
+    private static function formatDefault(ReflectionParameter $reflection, mixed $default): string
+    {
+        // Enum cases are constants too, and arrive here as Enum::Case.
+        if ($reflection->isDefaultValueConstant()) {
+            return self::constantName($reflection->getDefaultValueConstantName());
+        }
+
+        return match (true) {
+            is_string($default) => '`' . self::stringLiteral($default) . '`',
+            is_bool($default) => $default ? 'true' : 'false',
+            $default === null => 'null',
+            $default === [] => '[]',
+            // A non-empty array or a `new` initializer is code; the parameter's
+            // own string form carries the expression as written.
+            is_array($default), is_object($default) => '`' . (string)preg_replace(
+                '/^.*? = (.*) \]$/s',
+                '$1',
+                (string)$reflection
+            ) . '`',
+            // int, float — var_export keeps 0 and 0.0 visible
+            default => var_export($default, true),
+        };
+    }
+
+    /**
+     * A default constant's name as it reads in the source. Inside a namespace,
+     * reflection reports an unqualified constant under the namespace's name
+     * even when PHP falls back to the global one, so a namespaced name that is
+     * not defined is the global constant it fell back to.
+     */
+    private static function constantName(string $name): string
+    {
+        $separator = strpos($name, '::');
+        if ($separator !== false) {
+            $class = substr($name, 0, $separator);
+
+            return (in_array(strtolower($class), ['self', 'static', 'parent'], true)
+                ? $class
+                : Utils::sanitizeClassName($class)) . substr($name, $separator);
+        }
+
+        $lastSegment = strrchr($name, '\\');
+        if ($lastSegment === false) {
+            return $name;
+        }
+
+        return defined($name) ? Utils::sanitizeClassName($name) : substr($lastSegment, 1);
+    }
+
+    /**
+     * A string default as a PHP literal. var_export() writes control
+     * characters raw, and a line break ended the table row; a double-quoted
+     * string spells them as escapes instead.
+     */
+    private static function stringLiteral(string $value): string
+    {
+        return preg_match('/[\x00-\x1f\x7f]/', $value) === 1
+            ? '"' . addcslashes($value, "\0..\37\177\"\\\$") . '"'
+            : var_export($value, true);
     }
 
     /**
@@ -454,59 +541,59 @@ class Reflector
      */
     public static function getParamType(ReflectionParameter $refParam): string
     {
-        return self::formatReflectionType(
-            $refParam->getType(),
-            $refParam->getDeclaringClass()?->getName() ?? ''
-        );
+        $type = self::reflectionTypeNode($refParam->getType(), $refParam->getDeclaringClass()?->getName() ?? '');
+
+        return $type === null ? '' : TypeResolver::print($type);
     }
 
     /**
-     * Render a reflected type the way the generated markdown expects it: native
-     * types bare, class references fully qualified with a leading backslash,
-     * union and intersection members joined, and nullability spelled out.
+     * A reflected type as a type node: native types bare, class references
+     * fully qualified with a leading backslash, nullability spelled out.
      *
      * Reading the type off the reflection API rather than off ReflectionParameter's
      * string export is what makes union, intersection and nullable types come out
-     * intact — the export is a debug format and states only one type.
+     * intact — the export is a debug format and states only one type. As a node
+     * it also prints with the parentheses a "(A&B)|null" needs, which joining
+     * the members as strings left out.
      */
-    private static function formatReflectionType(?ReflectionType $type, string $declaringClass = ''): string
+    private static function reflectionTypeNode(?ReflectionType $type, string $declaringClass): ?TypeNode
     {
-        if ($type === null) {
-            return '';
-        }
+        return $type === null ? null : self::typeNodeOf($type, $declaringClass);
+    }
 
+    private static function typeNodeOf(ReflectionType $type, string $declaringClass): TypeNode
+    {
         if ($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType) {
-            // Utils::sanitizeDeclaration() splits unions on "|" and re-spaces them;
-            // it has no notion of "&", so intersections are spaced here and its
-            // "contains a space" test then leaves them alone.
-            $glue = $type instanceof ReflectionUnionType ? '|' : ' & ';
-
-            return implode(
-                $glue,
-                array_map(
-                    static fn (ReflectionType $member) => self::formatReflectionType($member, $declaringClass),
-                    $type->getTypes()
-                )
+            $members = array_map(
+                static fn (ReflectionType $member): TypeNode => self::typeNodeOf($member, $declaringClass),
+                $type->getTypes()
             );
+
+            return $type instanceof ReflectionUnionType
+                ? new UnionTypeNode($members)
+                : new IntersectionTypeNode($members);
         }
 
         /** @var \ReflectionNamedType $type */
         $name = $type->getName();
 
-        if ($name === 'self' && $declaringClass !== '') {
-            $rendered = Utils::sanitizeClassName($declaringClass);
+        // "self" and "static" name the declaring class here, as they do in a
+        // docblock. PHP 8.5 resolves a declared "self" itself and earlier
+        // versions report the keyword; every version reports "static".
+        if (in_array($name, ['self', 'static'], true) && $declaringClass !== '') {
+            $node = new IdentifierTypeNode(Utils::sanitizeClassName($declaringClass));
         } else {
-            $rendered = Utils::isNativeType($name) ? $name : Utils::sanitizeClassName($name);
+            $node = new IdentifierTypeNode(Utils::isNativeType($name) ? $name : Utils::sanitizeClassName($name));
         }
 
         // getName() drops the "?", and PHP collapses "Foo|null" to the same
         // nullable named type, so both spellings have to be restored here.
         // "mixed" and "null" already admit null by definition.
         if ($type->allowsNull() && !in_array(strtolower($name), ['mixed', 'null'], true)) {
-            $rendered .= '|null';
+            return new UnionTypeNode([$node, new IdentifierTypeNode('null')]);
         }
 
-        return $rendered;
+        return $node;
     }
 
     /**
@@ -529,6 +616,12 @@ class Reflector
         return 'mixed';
     }
 
+    /**
+     * Document only methods with one of these visibilities: public, protected,
+     * abstract, final. An unknown name is rejected when the class is reflected.
+     *
+     * @param list<string> $visibilityFilter
+     */
     public function setVisibilityFilter(array $visibilityFilter): self
     {
         $this->visibilityFilter = $visibilityFilter;
@@ -536,6 +629,13 @@ class Reflector
         return $this;
     }
 
+    /**
+     * Document only methods whose name matches this full regular expression
+     * (delimiters included, e.g. "/^get/"); an empty string documents all.
+     *
+     * @throws \InvalidArgumentException when the pattern does not compile,
+     *                                   with PHP's reason in the message
+     */
     public function setMethodRegex(string $methodRegex): self
     {
         // preg_match() returns false rather than throwing on a malformed pattern,
@@ -548,61 +648,27 @@ class Reflector
             // "No error" or "Internal error" depending on the PHP build. The
             // warning carries the only useful text ("Delimiter must not be
             // alphanumeric...") and is what a user needs to fix the argument.
-            $reason = '';
-            set_error_handler(static function (int $errno, string $message) use (&$reason): bool {
-                $reason = $message;
-
-                return true;
+            // Every compile failure raises that warning, so turning it into an
+            // ErrorException is the whole check.
+            set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+                throw new ErrorException($message, 0, $severity, $file, $line);
             });
 
             try {
-                $valid = preg_match($methodRegex, '') !== false;
+                preg_match($methodRegex, '');
+            } catch (ErrorException $e) {
+                throw new InvalidArgumentException(
+                    sprintf('Invalid method regex "%s": %s', $methodRegex, $e->getMessage()),
+                    0,
+                    $e
+                );
             } finally {
                 restore_error_handler();
-            }
-
-            if (!$valid) {
-                throw new InvalidArgumentException(
-                    sprintf('Invalid method regex "%s": %s', $methodRegex, $reason)
-                );
             }
         }
 
         $this->methodRegex = $methodRegex;
 
         return $this;
-    }
-
-    public function getReturnTypeFromMethod(ReflectionMethod $method, string $returnType): string
-    {
-        $declared = self::formatReflectionType($method->getReturnType(), $method->class);
-
-        return $declared === '' ? $returnType : $declared;
-    }
-
-    /**
-     * Resolve a docblock type against the importing file's use statements.
-     *
-     * @param array<string, string> $useStatements local name => imported class
-     */
-    public function getReturnTypesArray(string $returnType, array $useStatements): string
-    {
-        $isReferenceToArrayOfObjects = str_ends_with($returnType, '[]') ? '[]' : '';
-        if ($isReferenceToArrayOfObjects) {
-            $returnType = substr($returnType, 0, -2);
-        }
-
-        // Keyed by the name the file writes, so an alias resolves to the class it
-        // was aliased from rather than falling through to the current namespace.
-        $localName = Utils::getClassBaseName($returnType);
-        if (isset($useStatements[$localName])) {
-            $returnType = $useStatements[$localName];
-        }
-
-        if ($isReferenceToArrayOfObjects) {
-            $returnType .= '[]';
-        }
-
-        return $returnType;
     }
 }

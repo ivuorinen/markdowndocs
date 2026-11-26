@@ -43,6 +43,7 @@ class Shapes
 
     public function nullableParam(?Marker $marker = null, bool $flag = false): void
     {
+        unset($marker, $flag);
     }
 
     /**

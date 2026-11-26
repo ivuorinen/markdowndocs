@@ -27,14 +27,20 @@ class MyObject {
    /**
     * This is a function description
     * @param string $str
-    * @param array $arr
-    * @return Acme\OtherObject
+    * @param array<string, int> $arr
+    * @return OtherObject
     */
    public function someFunc($str, $arr=[]) {}
 }
 ```
 
 Then, running `phpdoc-md generate src > api.md` will write your API documentation to the file api.md.
+
+Types in `@param` and `@return` may use the PHPStan and Psalm syntax — generics, array and object shapes,
+callable signatures, literals, conditional types — and class names in them resolve through the file's `use`
+statements the way PHP resolves them in code. `@phpstan-param` and `@psalm-param` (and the matching `-return`
+tags) take precedence over the plain tag, as they do in those tools. Docblocks are read with
+[phpstan/phpdoc-parser](https://github.com/phpstan/phpdoc-parser).
 
 [Here you can see a rendered example](https://github.com/ivuorinen/markdowndocs/blob/main/docs.md)
 
@@ -49,6 +55,7 @@ out of the code so that functions that are missing DocBlock comments will still 
 - Reflection must be enabled in php.ini
 - Each class, interface, trait or enum must be defined in its own `.php` file, with the file name being the same as the type name. Files with
   another extension are not scanned
+- Symbolic links in a scanned directory are not followed; each one is reported on stderr
 - The project should use [Composer](https://getcomposer.org/)
 
 ### Installation / Usage
@@ -84,6 +91,8 @@ class, or if it should process every class in a specified directory search path.
 ```
 
 *Note that any class to be documented must be loadable using the autoloader provided by composer.*
+A name in a comma-separated list that cannot be loaded is reported on stderr and listed in the table of
+contents as plain text, in its place.
 
 ##### Options
 

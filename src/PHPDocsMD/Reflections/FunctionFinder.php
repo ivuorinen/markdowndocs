@@ -2,22 +2,27 @@
 
 declare(strict_types=1);
 
-namespace PHPDocsMD;
+namespace PHPDocsMD\Reflections;
 
 use PHPDocsMD\Entities\ClassEntity;
 use PHPDocsMD\Entities\FunctionEntity;
-use PHPDocsMD\Reflections\Reflector;
 
 /**
  * Find a specific function in a class or an array of classes
  *
  * @package PHPDocsMD
  */
-class FunctionFinder
+final class FunctionFinder
 {
+    /** @var array<string, ClassEntity> */
     private array $cache = [];
 
     /**
+     * The first declaration of the method found in the given classes or their
+     * ancestors, in order; false when none declares it.
+     *
+     * @param list<string> $classes
+     *
      * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */
@@ -34,6 +39,10 @@ class FunctionFinder
     }
 
     /**
+     * The method as the class, or the nearest ancestor declaring it, documents
+     * it; false when nothing up the chain declares it. Used to resolve
+     * {@inheritDoc}, so the entity carries the declaring class's documentation.
+     *
      * @return \PHPDocsMD\Entities\FunctionEntity|false
      * @throws \ReflectionException
      */

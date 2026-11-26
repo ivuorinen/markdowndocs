@@ -191,6 +191,55 @@ class MDTableGeneratorTest extends TestCase
         self::assertStringNotContainsString('DEPRECATED - ', $row);
     }
 
+    /**
+     * Deprecation adds a notice; it does not take the description's place.
+     */
+    public function testDeprecatedFuncKeepsItsDescription(): void
+    {
+        $func = new FunctionEntity();
+        $func->setName('old');
+        $func->setReturnType('void');
+        $func->setDescription('Does the old thing.');
+        $func->isDeprecated(true);
+        $func->setDeprecationMessage('use new()');
+
+        $tbl = new MDTableGenerator();
+        $tbl->openTable();
+
+        self::assertSame(
+            '| public | <del><strong>old()</strong> : <em>void</em></del>'
+            . '<br /><em>DEPRECATED - use new()</em><br /><em>Does the old thing.</em> |',
+            $tbl->addFunc($func)
+        );
+    }
+
+    /**
+     * A type is code, not markup. "list<Clause>" read as an HTML tag, so the
+     * rendered cell said just "list". A description is the author's markdown
+     * and keeps its markup.
+     */
+    public function testTypesAreEscapedButDescriptionsAreNot(): void
+    {
+        $param = new ParamEntity();
+        $param->setName('$both');
+        $param->setType('\\A & \\B');
+
+        $func = new FunctionEntity();
+        $func->setName('items');
+        $func->setParams([$param]);
+        $func->setReturnType('list<\\Clause>');
+        $func->setDescription('Returns <code>Clause</code> objects.');
+
+        $tbl = new MDTableGenerator();
+        $tbl->openTable();
+
+        self::assertSame(
+            '| public | <strong>items(</strong><em>\\A &amp; \\B</em> <strong>$both)</strong> : '
+            . '<em>list&lt;\\Clause&gt;</em><br /><em>Returns <code>Clause</code> objects.</em> |',
+            $tbl->addFunc($func)
+        );
+    }
+
     public static function exampleComments(): array
     {
         return [

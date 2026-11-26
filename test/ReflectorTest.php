@@ -6,15 +6,15 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Tests;
 
+use ErrorException;
 use InvalidArgumentException;
 use PHPDocsMD\Entities\ClassEntity;
 use PHPDocsMD\Entities\FunctionEntity;
 use PHPDocsMD\Reflections\Reflector;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use ReflectionParameter;
 
-class ReflectorTest extends TestCase
+class ReflectorTest extends ReflectorTestCase
 {
 
     /**
@@ -26,6 +26,18 @@ class ReflectorTest extends TestCase
      * @var \PHPDocsMD\Entities\ClassEntity
      */
     private ClassEntity $class;
+
+    /**
+     * A name that resolves to no class, interface or trait is rejected with a
+     * ReflectionException rather than reflected or skipped.
+     */
+    public function testUnknownClassNameIsRejected(): void
+    {
+        $this->expectException(\ReflectionException::class);
+        $this->expectExceptionMessage('Class "Acme\\No\\Such\\Thing" does not exist');
+
+        (new Reflector('Acme\\No\\Such\\Thing'))->getClassEntity();
+    }
 
     /**
      * @throws \ReflectionException
@@ -127,9 +139,10 @@ class ReflectorTest extends TestCase
         $typeC = Reflector::getParamType($paramC);
 
         // funcD declares both as "?X $p = null", so null is part of the type.
+        // Spaced like every other rendered union.
         $this->assertEmpty($typeC);
-        $this->assertEquals('\\stdClass|null', $typeB);
-        $this->assertEquals('\\Acme\\ExampleInterface|null', $typeA);
+        $this->assertEquals('\\stdClass | null', $typeB);
+        $this->assertEquals('\\Acme\\ExampleInterface | null', $typeA);
 
         $functions = $this->class->getFunctions();
 
@@ -334,6 +347,29 @@ class ReflectorTest extends TestCase
     }
 
     /**
+     * The compiler's warning is the only text that says what is wrong with the
+     * pattern, so it must reach the user in the message and stay attached as
+     * the cause.
+     */
+    public function testInvalidMethodRegexReportsTheCompilerWarning(): void
+    {
+        $reflector = new Reflector('Acme\\ExampleClass');
+
+        try {
+            $reflector->setMethodRegex('get');
+            $this->fail('An invalid method regex was accepted');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('Delimiter must not be alphanumeric', $e->getMessage());
+
+            $previous = $e->getPrevious();
+            if (!$previous instanceof ErrorException) {
+                $this->fail('The compiler warning is not attached as the cause');
+            }
+            $this->assertSame(E_WARNING, $previous->getSeverity());
+        }
+    }
+
+    /**
      * A tag whose name collides with an array-valued key used to replace that
      * array with a string; the next real @param then indexed the string and
      * fatalled.
@@ -400,13 +436,12 @@ class ReflectorTest extends TestCase
         $this->assertCount(4, $functions);
         $this->assertEquals('aMethod', $functions[0]->getName());
         $this->assertEquals('int', $functions[0]->getReturnType());
-        $this->assertFalse($functions[0]->isReturningNativeClass());
         $this->assertEquals('func', $functions[1]->getName());
         $this->assertEquals('\\stdClass', $functions[1]->getReturnType());
         $this->assertFalse($functions[1]->isAbstract());
 
-        $this->assertTrue($functions[2]->isReturningNativeClass());
-        $this->assertTrue($functions[3]->isReturningNativeClass());
+        $this->assertEquals('\\FilesystemIterator', $functions[2]->getReturnType());
+        $this->assertEquals('\\FilesystemIterator[]', $functions[3]->getReturnType());
     }
 
     /**
@@ -598,9 +633,9 @@ class ReflectorTest extends TestCase
     }
 
     /**
-     * sanitizeDeclaration() joins union members with " | " and the reflection API
-     * with "|", so comparing the two declarations as whole strings made them read
-     * as disjoint and listed every member twice.
+     * A member the docblock and the declaration both state is listed once. The
+     * two were once compared as whole strings, spaced differently, which made
+     * them read as disjoint and listed every member twice.
      *
      * @throws \ReflectionException
      */
@@ -617,6 +652,115 @@ class ReflectorTest extends TestCase
                 'union members must not repeat, got: ' . $param->getType()
             );
         }
+    }
+
+    /**
+     * A wrapped @return line is prose this tool does not render; it must not be
+     * appended to the method description.
+     *
+     * @throws \ReflectionException
+     */
+    public function testAWrappedReturnLineStaysOutOfTheDescription(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\Continuations', 'wrappedReturn');
+
+        $this->assertSame('Describes the return value at length.', $function->getDescription());
+        $this->assertSame('string', $function->getReturnType());
+    }
+
+    /**
+     * "@params" is a tag this tool does not know, like @author or @since: it
+     * documents no parameter and is not prose either.
+     *
+     * @throws \ReflectionException
+     */
+    public function testAMistypedTagAfterAParamDocumentsNothing(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\Continuations', 'strayAfterParam');
+
+        $this->assertSame('Lists a parameter, then mistypes the next tag.', $function->getDescription());
+        $this->assertCount(1, $function->getParams());
+        $this->assertSame('the name', $function->getParams()[0]->getDescription());
+    }
+
+    /**
+     * "@param string" names no parameter, so it documents none, and its wrapped
+     * line has no parameter to belong to.
+     *
+     * @throws \ReflectionException
+     */
+    public function testAParamTagWithoutANameDocumentsNothing(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\Continuations', 'unnamedParam');
+        $param = $function->getParams()[0];
+
+        $this->assertSame('Documents a parameter type but forgets its name.', $function->getDescription());
+        $this->assertSame('string', $param->getType());
+        $this->assertSame('', $param->getDescription());
+    }
+
+    /**
+     * A tag the parser cannot read is recorded as a problem rather than lost
+     * without a trace, and a @param that still names its parameter keeps its
+     * description.
+     *
+     * @throws \ReflectionException
+     */
+    public function testAnUnreadableTagIsReportedAndKeepsWhatItCan(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\Continuations', 'malformedTags');
+
+        $this->assertSame('the items to count', $function->getParams()[0]->getDescription());
+        $problems = $function->getProblems();
+        $this->assertCount(2, $problems);
+        $this->assertStringStartsWith('cannot read "@param array<int $items the items to count": ', $problems[0]);
+        $this->assertStringStartsWith('cannot read "@return int<0, the count": ', $problems[1]);
+    }
+
+    /**
+     * A quoted phrase may wrap like any other prose; the next line's " * " is
+     * decoration, not part of the quote.
+     *
+     * @throws \ReflectionException
+     */
+    public function testAQuoteThatWrapsLosesTheDecoration(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\Continuations', 'quoteWrapsALine');
+
+        $this->assertSame(
+            'Quotes a phrase that wraps: "the first half and the second half" read as one.',
+            $function->getDescription()
+        );
+        $this->assertSame('a "name that also wraps" inside its quotes', $function->getParams()[0]->getDescription());
+    }
+
+    /**
+     * An unpaired quote — inches, here — must not pair with the next quote in
+     * the docblock and take every tag in between with it.
+     *
+     * @throws \ReflectionException
+     */
+    public function testAStrayQuoteDoesNotSwallowTheTagsAfterIt(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\Continuations', 'strayQuote');
+
+        $this->assertSame('Fits a 12" pipe.', $function->getDescription());
+        $this->assertSame('the "inner" diameter', $function->getParams()[0]->getDescription());
+    }
+
+    /**
+     * {@inheritDoc} reaches past a parent that does not declare the method to
+     * the ancestor that does.
+     *
+     * @throws \ReflectionException
+     */
+    public function testInheritDocReachesAGrandparent(): void
+    {
+        $function = $this->functionOf('Acme\\Fixtures\\Docblocks\\InheritGrandchild', 'work');
+
+        $this->assertSame('Documented on the parent.', $function->getDescription());
+        $this->assertSame('a number', $function->getParams()[0]->getDescription());
+        $this->assertFalse($function->isAbstract());
     }
 
     /**

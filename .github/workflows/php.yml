@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
 
-# A six-leg matrix per ref is expensive; a new push makes the run in flight
+# A five-leg matrix per ref is expensive; a new push makes the run in flight
 # irrelevant, so cancel it rather than queue behind it.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,11 +38,10 @@ jobs:
           # install symfony/console 7 regardless of PHP version. These two legs
           # cover the ends of the declared range instead:
           #
-          #   highest — symfony/console 8 (needs PHP >= 8.4.1), exercising the
-          #             Application::addCommand path the lock never reaches.
+          #   highest — symfony/console 8 (needs PHP >= 8.4.1), the newest
+          #             major the constraint allows.
           #   lowest  — symfony/console 6, the oldest the constraint allows,
-          #             run on the oldest PHP we support. This is the leg that
-          #             covers Application::add(), removed in console 8.
+          #             run on the oldest PHP we support.
           - operating-system: 'ubuntu-latest'
             php-versions: '8.5'
             dependencies: 'highest'
@@ -57,9 +56,12 @@ jobs:
           php-version: ${{ matrix.php-versions }}
           extensions: mbstring, intl, fileinfo
           ini-values: post_max_size=256M, max_execution_time=180
-          # Only the one leg that reports coverage needs a driver installed;
-          # the other five run measurably faster without one.
-          coverage: ${{ (matrix.php-versions == '8.5' && matrix.dependencies == 'locked') && 'xdebug' || 'none' }}
+          # The three locked legs report coverage. Codecov merges the uploads
+          # for a commit, so a line only one PHP version can run counts once
+          # that version has run it — Reflector's resolution of a declared
+          # "self" executes only before PHP 8.5, which resolves it itself. The
+          # two dependency-range legs skip the driver.
+          coverage: ${{ matrix.dependencies == 'locked' && 'xdebug' || 'none' }}
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -105,15 +107,15 @@ jobs:
         run: composer audit
 
       - name: Run test suite
-        if: ${{ !(matrix.php-versions == '8.5' && matrix.dependencies == 'locked') }}
+        if: matrix.dependencies != 'locked'
         run: composer test
 
       - name: Run test suite with coverage
-        if: ${{ matrix.php-versions == '8.5' && matrix.dependencies == 'locked' }}
+        if: matrix.dependencies == 'locked'
         run: composer test-coverage
 
       - name: Upload coverage to Codecov
-        if: ${{ matrix.php-versions == '8.5' && matrix.dependencies == 'locked' }}
+        if: matrix.dependencies == 'locked'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage.xml

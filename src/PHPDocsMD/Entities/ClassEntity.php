@@ -11,10 +11,10 @@ use PHPDocsMD\Utils;
  *
  * @package PHPDocsMD
  */
-class ClassEntity extends CodeEntity
+final class ClassEntity extends CodeEntity
 {
     /**
-     * @var FunctionEntity[]
+     * @var list<FunctionEntity>
      */
     private array $functions = [];
     private bool $isInterface = false;
@@ -22,6 +22,7 @@ class ClassEntity extends CodeEntity
     private bool $hasIgnoreTag = false;
     private bool $hasInternalTag = false;
     private string $extends = '';
+    /** @var list<string> */
     private array $interfaces = [];
     private bool $isTrait = false;
     private bool $isEnum = false;
@@ -45,6 +46,10 @@ class ClassEntity extends CodeEntity
         return $this->extends;
     }
 
+    /**
+     * Stored with a leading backslash, the form type cells and section anchors
+     * compare against.
+     */
     public function setExtends(string $extends): self
     {
         $this->extends = Utils::sanitizeClassName($extends);
@@ -52,11 +57,20 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    /**
+     * @return list<string> fully qualified, each with a leading backslash
+     */
     public function getInterfaces(): array
     {
         return $this->interfaces;
     }
 
+    /**
+     * Each name is stored with a leading backslash, the form type cells and
+     * section anchors compare against.
+     *
+     * @param list<string> $implements
+     */
     public function setInterfaces(array $implements): self
     {
         $this->interfaces = [];
@@ -67,13 +81,16 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    /**
+     * @return list<FunctionEntity>
+     */
     public function getFunctions(): array
     {
         return $this->functions;
     }
 
     /**
-     * @param FunctionEntity[] $functions
+     * @param list<FunctionEntity> $functions
      */
     public function setFunctions(array $functions): self
     {
@@ -82,6 +99,10 @@ class ClassEntity extends CodeEntity
         return $this;
     }
 
+    /**
+     * Stored with a leading backslash, the form type cells and section anchors
+     * compare against.
+     */
     #[\Override]
     public function setName(string $name): self
     {

@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace PHPDocsMD\Entities;
 
-use PHPDocsMD\Utils;
-
 /**
  * Object describing a function parameter
  *
  * @package PHPDocsMD
  */
-class ParamEntity extends CodeEntity
+final class ParamEntity extends CodeEntity
 {
     private string $default = '';
     private bool $hasDefault = false;
@@ -31,6 +29,10 @@ class ParamEntity extends CodeEntity
         return $this->hasDefault;
     }
 
+    /**
+     * Records the default as it is to be printed, and that one exists:
+     * hasDefault() is what tells "no default" from a default of "" or "0".
+     */
     public function setDefault(string $default): self
     {
         $this->default = $default;
@@ -49,19 +51,5 @@ class ParamEntity extends CodeEntity
         $this->type = $type;
 
         return $this;
-    }
-
-    /**
-     * @throws \ReflectionException
-     */
-    public function getNativeClassType(): ?string
-    {
-        foreach (preg_split('/\s*\|\s*/', $this->type) as $typeDeclaration) {
-            if (Utils::isNativeClassReference($typeDeclaration)) {
-                return $typeDeclaration;
-            }
-        }
-
-        return null;
     }
 }

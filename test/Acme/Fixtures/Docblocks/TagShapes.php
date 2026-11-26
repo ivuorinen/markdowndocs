@@ -19,5 +19,6 @@ class TagShapes
      */
     public function mistypedTag(string $label): void
     {
+        unset($label);
     }
 }
